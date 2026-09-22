@@ -53,6 +53,25 @@ describe('FAO-56 independently derived scientific fixtures', () => {
     expect(rootWaterBalance(79, 0, 0, 0, 5, 80).unmetEtMm).toBe(4);
     expect(surfaceWaterBalance(3, 10, 0, 0, 1, .4, .2, 23)).toEqual({ depletionMm: 0, drainageMm: 2 });
   });
+  it('limits Ke by exposed/wetted area and distinguishes rain from drip wetting', () => {
+    const parameters = { ...DEFAULT_PARAMETERS, kcb: .4, cropHeightM: .3 };
+    const drip = evaporationCoefficients(parameters, GOLDEN_WEATHER, 0, 'drip');
+    const rain = evaporationCoefficients(parameters, GOLDEN_WEATHER, 0, 'rain');
+    expect(drip.ke).toBeLessThan(rain.ke);
+    expect(drip.ke).toBeLessThanOrEqual(drip.exposedWettedFraction * drip.kcmax);
+    expect(rain.ke).toBeLessThanOrEqual(rain.exposedWettedFraction * rain.kcmax);
+    expect(evaporationCoefficients(parameters, GOLDEN_WEATHER, 23).ke).toBe(0);
+  });
+  it('applies Ks to transpiration while preserving the independent evaporation term', () => {
+    const result = calculateAgronomy({ ...calculateGolden().input, rootZoneDepletionMm: 40, observedRainMm: 0 });
+    expect(result.ks).toBeGreaterThan(0);
+    expect(result.ks).toBeLessThan(1);
+    expect(result.etcMm).toBeCloseTo((result.ks * result.kcb + result.ke) * result.etoMm, 10);
+    expect(result.etcMm).not.toBeCloseTo(result.ks * (result.kcb + result.ke) * result.etoMm, 5);
+    expect(result.adjustedDepletionFraction).toBeGreaterThanOrEqual(.1);
+    expect(result.adjustedDepletionFraction).toBeLessThanOrEqual(.8);
+    expect(result.rawMm).toBeLessThan(result.tawMm);
+  });
   it('respects units and rejects invalid scientific inputs', () => {
     expect(depthToLiters(1, 10000)).toBe(10000);
     expect(totalAvailableWater(.30, .14, .5)).toBeCloseTo(80);

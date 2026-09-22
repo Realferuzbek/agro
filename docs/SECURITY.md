@@ -12,11 +12,15 @@ Use verified server-side Auth identity rather than trusting a cookie payload alo
 
 ## First administrator
 
-The first admin is created by a privileged server-side bootstrap process using Supabase's administrative user API plus a database role update. Supply the email and a strong unique password through private environment values (`AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD`) and the server-only service-role key. The routine must run on the operator's trusted machine or deployment job, never in a client component or public signup endpoint.
+The first admin is created by `npx tsx scripts/bootstrap-admin.ts`, using Supabase's administrative user API plus a database role update. Supply the email and a strong unique password through private environment values (`AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD`) and the server-only service-role key. The routine must run on the operator's trusted machine or deployment job, never in a client component or public signup endpoint.
 
 The database role is authoritative even if an Auth record contains `role: admin` metadata. Provisioning an Auth account alone does not grant admin access. If provisioning fails between account creation and role assignment, inspect the profile using a privileged database connection; the account remains a farmer until the trusted role update succeeds.
 
-After successful creation, remove the bootstrap password from persistent environment files and use the normal `/admin/login` flow. Do not keep an example administrator password in seed SQL. Local public signup is disabled. TOTP enrollment/verification can be enabled by Supabase, but enforcing MFA assurance level is a future policy change; this MVP's administrator login uses email/password.
+The repository bootstrap rejects hosted URLs and resets an existing local account's password to the private bootstrap value so a repeat setup has a consistent login. For hosted deployment, the operator creates the Auth user through privileged Supabase management and promotes its verified UUID using privileged SQL; the exact procedure is in [deployment](DEPLOYMENT.md). No browser self-assignment path is added for convenience.
+
+After successful creation, use the normal `/admin` flow. The local admin browser test reads credentials from ignored `.env.local`; keep them private and out of hosted runtime variables. Do not keep an example administrator password in seed SQL. Local public signup is disabled. TOTP enrollment/verification can be enabled by Supabase, but enforcing MFA assurance level is a future policy change; this MVP's administrator login uses email/password.
+
+The local configuration keeps the email/password provider enabled under `[auth.email]` while top-level `[auth].enable_signup = false` prevents public registration. Disabling the email provider itself prevents administrator password login too. Real admin browser login has been verified with this separation.
 
 ## Device credentials and ingestion
 

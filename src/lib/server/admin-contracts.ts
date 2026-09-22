@@ -1,0 +1,7 @@
+import { z } from 'zod';
+
+const identity = { expectedVersion: z.number().int().nonnegative(), idempotencyKey: z.uuid() };
+export const simulationMutationSchema = z.object({ ...identity, action: z.enum(['run','pause','reset','advance']), scenarioId: z.string().max(80).optional(), seconds: z.number().int().min(1).max(86400).optional(), minutes: z.number().min(1/60).max(1440).optional(), speed: z.union([z.literal(1),z.literal(10),z.literal(60)]).optional() }).strict();
+export const irrigationMutationSchema = z.object({ ...identity, command: z.enum(['start','pause','resume','stop']) }).strict();
+export const deviceSchema = z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/), fieldId: z.uuid(), zoneId: z.enum(['A','B','C','D']).optional(), name: z.string().trim().min(1).max(100), kind: z.enum(['weather','rain','soil','flow','pressure','valve','pump']), mode: z.enum(['SIMULATED','MEASURED']), enabled: z.boolean().default(true), configuration: z.record(z.string(),z.unknown()).default({}) }).strict();
+export const parameterSchema = z.object({ kind: z.enum(['crop','soil','policy','irrigation','simulation']), version: z.string().regex(/^[A-Za-z0-9._-]{1,80}$/), name: z.string().trim().min(1).max(120), parameters: z.record(z.string(),z.unknown()), source: z.object({ title: z.string().min(1).max(300), organization: z.string().min(1).max(150), notes: z.string().min(1).max(3000), year: z.number().int().min(1900).max(2200).optional(), url: z.url().optional() }).strict() }).strict();

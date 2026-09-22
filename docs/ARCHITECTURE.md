@@ -51,6 +51,8 @@ Group state transitions, associated observations, recommendations, calculations 
 
 Backend absence is a visible state. An explicitly identified local demonstration can remain explorable, but cannot impersonate a connected database, successful admin mutation or live hardware.
 
+Measured ingestion records validated history/latest-device data and quality alerts. Explicitly approved measured field bindings can atomically assimilate observed rainfall when the model day matches; the result reports `fieldModelUpdated`. `controlApplied: false` remains explicit because no hardware is actuated. Ordinary current-day telemetry cannot mix into the April 2026 simulated field merely by changing its provenance label.
+
 ## Product decisions
 
 Farmer routes are Today, Field, Irrigation, Forecast, History and Devices. Technical details appear on demand in the recommendation explanation. Admin navigation is outside the farmer navigation; access protection is still enforced independently.

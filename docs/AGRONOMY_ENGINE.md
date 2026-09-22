@@ -2,6 +2,8 @@
 
 AgriFlow uses deterministic TypeScript calculations independent of React, the database, and device vendors. Calculations are estimates from versioned inputs, not a substitute for local field calibration. The method is FAO-56 based; AgriFlow is not certified or endorsed by FAO.
 
+Implementation: `src/domain/agronomy.ts`, with public contracts in `src/domain/types.ts`. `ENGINE_VERSION` is `1.0.0`; `DEFAULT_PARAMETERS.version` is `potato-loam-demo-1.0.0`. The main entry points are `calculateEto`, `calculateAgronomy` and `calculateGolden`. Unit helpers, `cropStage`, `adjustBasalCoefficient`, `evaporationCoefficients`, `rootWaterBalance` and `surfaceWaterBalance` are independently testable exports.
+
 ## Sources and parameter categories
 
 The primary reference is Allen, Pereira, Raes and Smith, *Crop Evapotranspiration: Guidelines for Computing Crop Water Requirements*, FAO Irrigation and Drainage Paper 56 (1998).
@@ -65,6 +67,6 @@ The forecast may influence scheduling; only observed rain reduces actual depleti
 
 ## Limits and validation
 
-Daily FAO-56 ET is not a validated hourly weather model. Fine simulation steps distribute demand deterministically for timing and delivery; field validation is still required before operational use. Simulated infiltration/sensor lag is deliberately simpler than a physical Richards-equation model. Automatic salinity/leaching recommendations, calibrated runoff prediction, real sensor assimilation and live pump control are outside this MVP.
+Daily FAO-56 ET is not a validated hourly weather model. After the initialized evening checkpoint, fine simulation steps allocate each daily budget uniformly from 06:00–18:00 Tashkent; no-rain forecast planning uses conservative 24-hour allocation. These are explicit timing assumptions. Simulated infiltration/sensor lag is deliberately simpler than a physical Richards-equation model. Automatic salinity/leaching recommendations, calibrated runoff prediction, independent soil-sensor assimilation and live pump control are outside this MVP. Any measured rainfall input still needs an approved, clock-compatible field binding; a received telemetry event alone does not establish that approval.
 
 Run `npm test` for scientific regressions and boundaries. See [golden scenarios](GOLDEN_SCENARIOS.md) for the fixed benchmark and [build progress](BUILD_PROGRESS.md) for actual verification results.

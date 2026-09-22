@@ -73,7 +73,7 @@ begin
   if not found or credential.device_id<>p_device_id or credential.revoked_at is not null or (credential.expires_at is not null and credential.expires_at<=now()) then
     raise exception 'Invalid device credential' using errcode='42501';
   end if;
-  select * into device from public.devices where id=p_device_id and enabled=true;
+  select * into device from public.devices where id=p_device_id and enabled=true for update;
   if not found then raise exception 'Device disabled or missing' using errcode='42501'; end if;
   if device.mode<>'MEASURED' then raise exception 'Ingestion requires a registered measured device; simulator writes use the simulation pipeline' using errcode='22023'; end if;
   select * into prior from public.telemetry where device_id=p_device_id and event_id=p_event_id;

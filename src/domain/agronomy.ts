@@ -25,7 +25,7 @@ export function runtimeMinutes(volumeLiters: number, flowM3h: number) { nonnegat
 /** FAO-56 equation 11; pressure in kPa. Negative air temperatures are valid. */
 export function saturationVaporPressure(temperatureC: number) { finite(temperatureC, 'temperatureC'); if (temperatureC < -80 || temperatureC > 65) throw new Error('Temperature outside supported range'); return .6108 * Math.exp(17.27 * temperatureC / (temperatureC + 237.3)); }
 /** Equation 17: pair maximum humidity with minimum temperature. */
-export function actualVaporPressure(tmin: number, tmax: number, rhmin: number, rhmax: number) { if (rhmin < 0 || rhmax > 100 || rhmin > rhmax) throw new Error('Invalid humidity range'); return (saturationVaporPressure(tmin) * rhmax / 100 + saturationVaporPressure(tmax) * rhmin / 100) / 2; }
+export function actualVaporPressure(tmin: number, tmax: number, rhmin: number, rhmax: number) { finite(rhmin, 'rhmin'); finite(rhmax, 'rhmax'); if (rhmin < 0 || rhmax > 100 || rhmin > rhmax) throw new Error('Invalid humidity range'); return (saturationVaporPressure(tmin) * rhmax / 100 + saturationVaporPressure(tmax) * rhmin / 100) / 2; }
 export function dayOfYear(date: string) { if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Expected an ISO calendar date'); const timestamp = Date.parse(`${date}T00:00:00Z`); if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date) throw new Error('Invalid calendar date'); return Math.floor((timestamp - Date.UTC(Number(date.slice(0, 4)), 0, 1)) / 86400000) + 1; }
 /** Equations 21–25, MJ m−2 day−1. Polar limits are explicitly constrained. */
 export function extraterrestrialRadiation(latitudeDeg: number, day: number) { finite(latitudeDeg, 'latitude'); if (Math.abs(latitudeDeg) > 90 || day < 1 || day > 366) throw new Error('Invalid latitude/day'); const phi = latitudeDeg * Math.PI / 180; const inverseDistance = 1 + .033 * Math.cos(2 * Math.PI * day / 365); const declination = .409 * Math.sin(2 * Math.PI * day / 365 - 1.39); const sunset = Math.acos(clamp(-Math.tan(phi) * Math.tan(declination), -1, 1)); return Math.max(0, 1440 / Math.PI * .082 * inverseDistance * (sunset * Math.sin(phi) * Math.sin(declination) + Math.cos(phi) * Math.cos(declination) * Math.sin(sunset))); }
@@ -75,12 +75,12 @@ export function validateParameters(p: AgronomyParameters) {
   if (!(p.readilyEvaporableWaterMm > 0 && p.readilyEvaporableWaterMm < tew)) throw new Error('REW must be positive and below TEW');
 }
 /** Equations 71–76; persist De separately from root-zone depletion. */
-export function evaporationCoefficients(p: AgronomyParameters, w: WeatherInput, surfaceDepletionMm: number) {
+export function evaporationCoefficients(p: AgronomyParameters, w: WeatherInput, surfaceDepletionMm: number, surfaceWetting: 'drip' | 'rain' = 'drip') {
   validateParameters(p); nonnegative(surfaceDepletionMm, 'surfaceDepletionMm');
   const tewMm = 1000 * (p.fieldCapacity - .5 * p.wiltingPoint) * p.evaporationDepthM;
-  const kcmax = Math.max(1.2 + (.04 * (w.windSpeedMps - 2) - .004 * (w.relativeHumidityMinPct - 45)) * (p.cropHeightM / 3) ** .3, p.kcb + .05);
+  const kcmax = Math.max(1.2 + (.04 * (clamp(w.windSpeedMps, 1, 6) - 2) - .004 * (clamp(w.relativeHumidityMinPct, 20, 80) - 45)) * (p.cropHeightM / 3) ** .3, p.kcb + .05);
   const canopyFraction = clamp((Math.max(.01, p.kcb - .15) / Math.max(.01, kcmax - .15)) ** (1 + .5 * p.cropHeightM), 0, .99);
-  const exposedWettedFraction = Math.max(.01, Math.min(1 - canopyFraction, p.wettedFraction * (1 - 2 / 3 * canopyFraction)));
+  const exposedWettedFraction = Math.max(.01, Math.min(1 - canopyFraction, surfaceWetting === 'rain' ? 1 : p.wettedFraction * (1 - 2 / 3 * canopyFraction)));
   const kr = surfaceDepletionMm <= p.readilyEvaporableWaterMm ? 1 : clamp((tewMm - surfaceDepletionMm) / (tewMm - p.readilyEvaporableWaterMm), 0, 1);
   const ke = Math.max(0, Math.min(kr * (kcmax - p.kcb), exposedWettedFraction * kcmax));
   return { tewMm, kcmax, canopyFraction, exposedWettedFraction, kr, ke };
@@ -105,7 +105,7 @@ export function surfaceWaterBalance(startMm: number, rainMm: number, runoffMm: n
 /** Golden convention: weather ET occurs before late-day rain/irrigation. */
 export function calculateAgronomy(input: AgronomyInput): AgronomyResult {
   const p = input.parameters; validateParameters(p); const eto = calculateEto(input.weather);
-  const evaporation = evaporationCoefficients(p, input.weather, input.surfaceDepletionMm);
+  const evaporation = evaporationCoefficients(p, input.weather, input.surfaceDepletionMm, input.surfaceWetting);
   const tawMm = totalAvailableWater(p.fieldCapacity, p.wiltingPoint, p.rootDepthM);
   if (input.rootZoneDepletionMm > tawMm || input.surfaceDepletionMm > evaporation.tewMm) throw new Error('Starting depletion exceeds available water');
   const potentialEtcMm = (p.kcb + evaporation.ke) * eto.etoMm;

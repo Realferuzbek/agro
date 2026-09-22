@@ -108,6 +108,12 @@ create table public.state_mutations (
   created_at timestamptz not null default now(),
   primary key(field_id,idempotency_key)
 );
+create table public.simulation_controls (
+  field_id uuid primary key references public.fields(id),
+  status text not null default 'paused' check(status in ('running','paused')),
+  speed integer not null default 1 check(speed in (1,10,60)),
+  updated_at timestamptz not null default now()
+);
 create table public.calculation_runs (
   id uuid primary key default gen_random_uuid(),
   field_id uuid not null references public.fields(id),
@@ -232,7 +238,7 @@ create index audit_logs_time_idx on public.audit_logs(created_at desc);
 
 -- Explicit grants, RLS enabled on every exposed table. No anonymous/authenticated role receives direct write grants.
 do $$ declare t text; begin
-  foreach t in array array['profiles','farms','fields','parameter_sets','devices','device_credentials','product_state','state_mutations','calculation_runs','recommendations','telemetry','device_latest_state','weather_observations','weather_forecasts','irrigation_runs','alerts','simulation_events','commissioning_runs','audit_logs'] loop
+  foreach t in array array['profiles','farms','fields','parameter_sets','devices','device_credentials','product_state','state_mutations','simulation_controls','calculation_runs','recommendations','telemetry','device_latest_state','weather_observations','weather_forecasts','irrigation_runs','alerts','simulation_events','commissioning_runs','audit_logs'] loop
     execute format('alter table public.%I enable row level security',t);
     execute format('revoke all on public.%I from anon, authenticated',t);
     execute format('grant all on public.%I to service_role',t);
@@ -274,6 +280,10 @@ begin
   next_revision := current_row.revision+1;
   update public.product_state set state=p_state, revision=next_revision, updated_at=now() where field_id=p_field_id;
   insert into public.state_mutations(field_id,idempotency_key,request_hash,revision,actor_id,action) values(p_field_id,p_idempotency_key,p_request_hash,next_revision,auth.uid(),p_action);
+  if p_bundle ? 'simulationControl' then
+    insert into public.simulation_controls(field_id,status,speed) values(p_field_id,p_bundle->'simulationControl'->>'status',(p_bundle->'simulationControl'->>'speed')::integer)
+      on conflict(field_id) do update set status=excluded.status,speed=excluded.speed,updated_at=now();
+  end if;
 
   if p_bundle ? 'calculation' then
     insert into public.calculation_runs(field_id,revision,engine_version,parameter_version,calculated_at,input_snapshot,output_snapshot)

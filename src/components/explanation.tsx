@@ -1,0 +1,20 @@
+'use client';
+import * as Dialog from '@radix-ui/react-dialog';
+import { ArrowUpRight, Info, X } from 'lucide-react';
+import { useProduct } from './product-provider';
+import { StatRow } from './ui';
+import { duration, number, volume } from '@/lib/format';
+import { brand } from '@/config/brand';
+export function Explanation({ className = 'button ghost' }: { className?: string }) {
+  const { state } = useProduct(); if (!state) return null;
+  const c = state.calculation, r = state.recommendation;
+  const steps = [
+    { title: 'Weather sets the starting point', source: 'Simulated weather · FAO-56 equations 6–40', rows: [['Temperature range', `${state.weather.temperatureMinC}–${state.weather.temperatureMaxC} °C`],['Relative humidity',`${state.weather.relativeHumidityMinPct}–${state.weather.relativeHumidityMaxPct}%`],['Wind at 2 m',`${number(state.weather.windSpeedMps)} m/s`],['Solar radiation',`${number(state.weather.solarRadiationMjM2Day)} MJ/m²/day`],['Reference ET₀',`${number(c.etoMm,2)} mm/day`]] },
+    { title: 'Potato, in its growing season', source: `Reference parameters · ${c.parameterVersion}`, rows: [['Growth stage',state.field.growthStage],['Basal coefficient Kcb',number(c.kcb,2)],['Evaporation coefficient Ke',number(c.ke,4)],['Water stress coefficient Ks',number(c.ks,3)],['Crop water use',`${number(c.etcMm,2)} mm/day`]], formula: 'ETc = (Ks × Kcb + Ke) × ET₀' },
+    { title: 'Water stored in the root zone', source: 'Derived · field-level water balance', rows: [['Root depth',`${number(state.field.rootDepthM,2)} m`],['Total available water',`${number(c.tawMm)} mm`],['Readily available water',`${number(state.soil.rawMm,2)} mm`],['Current depletion',`${number(state.soil.rootZoneDepletionMm,2)} mm`]] },
+    { title: 'Rain expected. Rain received.', source: 'Forecast and simulated observations remain separate', rows: [['Forecast rainfall',`${number(state.rain.forecastMm)} mm`],['Observed rainfall',`${number(state.rain.observedMm)} mm`],['Difference',`${number(state.rain.observedMm-state.rain.forecastMm)} mm`]], formula: 'Only observed rain enters the actual water balance.' },
+    { title: 'From crop need to water delivery', source: 'Derived · configured management policy', rows: [['Target depletion',`${number(r.targetDepletionMm,2)} mm`],['Net root-zone need',`${number(r.netDepthMm,2)} mm · ${volume(r.netVolumeLiters)}`],['Application efficiency',`${number(state.parameters.applicationEfficiency*100,0)}%`],['Gross delivery',`${number(r.grossDepthMm,2)} mm · ${volume(r.grossVolumeLiters)}`],['Detailed volume',`${number(r.grossVolumeLiters,0)} L`]], formula: 'Gross depth = net depth ÷ efficiency; liters = depth × area.' },
+    { title: 'Four zones. One sequential plan.', source: 'Simulated flow · nominal fallback when unavailable', rows: [...state.zones.map(z => [`Zone ${z.id}`,`${volume(z.targetVolumeLiters)} · ${duration(z.estimatedRuntimeMinutes)}`]),['Total estimated pump time',duration(r.estimatedRuntimeMinutes)]], formula: 'Estimated runtime = target volume ÷ flow. Stop at delivered volume.' },
+  ];
+  return <Dialog.Root><Dialog.Trigger className={className}>Why this recommendation?<ArrowUpRight size={13} /></Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="drawer"><Dialog.Close className="close-dialog" aria-label="Close explanation"><X size={16} /></Dialog.Close><div className="eyebrow">THE SCIENCE BEHIND YOUR PLAN</div><Dialog.Title>Every drop, explained.</Dialog.Title><Dialog.Description>A transparent path from weather and soil to your irrigation recommendation.</Dialog.Description>{steps.map((step,index) => <section className="calculation-step" key={step.title}><h3><span className="step-number">{index+1}</span>{step.title}</h3>{step.rows.map(([label,value]) => <StatRow key={label} label={label} value={value} />)}{step.formula && <div className="formula">{step.formula}</div>}<div className="source-note"><Info size={10} />{step.source}</div></section>)}<p className="fine-print">Engine {c.engineVersion} · {brand.methodology}</p></Dialog.Content></Dialog.Portal></Dialog.Root>;
+}

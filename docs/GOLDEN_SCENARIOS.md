@@ -40,20 +40,20 @@ The gross volume is divided evenly among the four zones. Total nominal pumping i
 
 ## Twelve simulation scenarios
 
-| Scenario | Required observable behavior |
+| Scenario ID | Required observable behavior |
 |---|---|
-| Normal hot day | ET increases depletion; recommendation and zone delivery remain coherent. |
-| Forecast rain succeeds | Forecast is not actual water; observed rain later reduces depletion. |
-| Forecast rain fails | No rain credit; reconcile after the window and reassess irrigation. |
-| Rain underperforms | Show forecast and received amounts separately; derive the remaining need. |
-| Unexpected heavy storm | Book observed water; reduce need and account for excess drainage. |
-| High flow | Present possible leak/line issue as a hypothesis; pause unsafe control. |
-| Low flow | Present possible restriction, valve, supply or configuration issues; pause unsafe control. |
-| Low pressure | Flag pressure evidence and pause automatic simulated delivery. |
-| Soil sensor offline | Mark freshness/quality; continue a qualified model recommendation when safe. |
-| Impossible soil outlier | Reject the observation for control; retain quality evidence. |
-| Valve command failure | Detect missing/failed acknowledgment; pause control without fictional delivery. |
-| Telemetry conflict | Closed valve/off pump plus significant flow is inconsistent; pause control. |
+| `normal-hot-day` | ET increases depletion; recommendation and zone delivery remain coherent. |
+| `rain-succeeds` | Forecast is not actual water; observed rain later reduces depletion. |
+| `rain-fails` | No rain credit; reconcile after the window and reassess irrigation. |
+| `rain-underperforms` | Show forecast and received amounts separately; derive the remaining need. |
+| `unexpected-storm` | Book observed water; reduce need and account for excess drainage. |
+| `high-flow` | Present possible leak/line issue as a hypothesis; pause unsafe control. |
+| `low-flow` | Present possible restriction, valve, supply or configuration issues; pause unsafe control. |
+| `low-pressure` | Flag pressure evidence and pause automatic simulated delivery. |
+| `sensor-offline` | Mark freshness/quality; continue a qualified model recommendation when safe. |
+| `sensor-outlier` | Reject the observation for control; retain quality evidence. |
+| `valve-failure` | Detect missing/failed acknowledgment; pause control without fictional delivery. |
+| `telemetry-conflict` | Closed valve/off pump plus significant flow is inconsistent; pause control. |
 
 ## Regression invariants
 

@@ -1,0 +1,17 @@
+import { createClient } from '@supabase/supabase-js';
+import { assertLocalBackend, loadLocalEnvironment } from './env';
+
+async function main() {
+  loadLocalEnvironment();const {url,key}=assertLocalBackend();
+  const email=process.env.AGRIFLOW_ADMIN_EMAIL;const password=process.env.AGRIFLOW_ADMIN_PASSWORD;
+  if(!email||!password||password.length<12)throw new Error('Set AGRIFLOW_ADMIN_EMAIL and AGRIFLOW_ADMIN_PASSWORD (at least 12 characters) in .env.local.');
+  const client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+  const {data:list,error:listError}=await client.auth.admin.listUsers({page:1,perPage:1000});if(listError)throw listError;
+  let user=list.users.find(candidate=>candidate.email===email);
+  if(!user){const {data,error}=await client.auth.admin.createUser({email,password,email_confirm:true});if(error)throw error;user=data.user;}
+  else {const {error}=await client.auth.admin.updateUserById(user.id,{password,email_confirm:true});if(error)throw error;}
+  if(!user)throw new Error('Unable to create the administrator.');
+  const {error}=await client.from('profiles').upsert({id:user.id,role:'admin'});if(error)throw error;
+  console.log('Local administrator is ready. Use the credentials in ignored .env.local at /admin.');
+}
+main().catch(error=>{console.error(error instanceof Error?error.message:'Admin bootstrap failed.');process.exitCode=1;});
