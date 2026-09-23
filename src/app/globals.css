@@ -78,10 +78,35 @@ svg { flex-shrink: 0; }
 :root { --muted: #64715d; }
 .workspace-label,.navigation a,.field-switch span:not(.field-icon),.eyebrow,.page-heading p,.stat-main>span,.stat-caption,.card-description,.chart-caption,.alert-item p,.alert-item time,.app-footer,.fine-print,.source-note,.device-card p,.device-meta,.device-value small,.field-facts span,.growth-stage span,.soil-labels p,.stat-row>span,.timeline-item time,.form-field,.small-dialog p,.drawer>p,.unavailable p,.login-card p,.metric>span,.metric p,.rain-stat .old,.farm-note p,.farm-identity small { color: #64715d; }
 .text-link,.section-link { color: #4d6e3b; }
+th,.zone-volume small,.tabs button:not([aria-selected=true]):not([aria-pressed=true]) { color: #64715d; }
+.plan-summary .metric>span { color: #54624e; }
+.formula { color: #4d643e; }
+.tabs button[aria-pressed=true] { background: #2e6044; color: #fff; border-color: #2e6044; }
 .avatar,.topbar-avatar { color: #535d40; }
 .badge.neutral { color: #5c6755; }.badge.amber { color: #866229; }.badge.blue { color: #476976; }
 .mobile-nav a { color: #64715d; }.recharts-cartesian-axis-tick text { fill: #64715d; }
 .hero-metrics .metric>span,.hero-metrics .metric p { color: #bdd1b8; }
 .mini-track>span { transition: width .65s ease; }
+.permission-fields { border: 1px solid var(--line); border-radius: 9px; padding: 16px; margin: 0 0 18px; }
+.permission-fields legend { font-size: 12px; font-weight: 600; padding: 0 6px; }
+.check-field { display: flex; align-items: center; gap: 10px; font-size: 12px; margin: 10px 0; }
+.check-field input { accent-color: var(--green); width: 17px; height: 17px; }
+.access-members { margin-top: 22px; }
+.access-member { padding: 18px 0; border-top: 1px solid var(--line); }
+.access-member-heading { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.access-member-heading strong { overflow-wrap: anywhere; font-size: 12px; }
+.access-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.auth-page { padding: 20px; }
+.auth-page .button { margin-top: 16px; }
 .skeleton { background: linear-gradient(100deg,#e9eddf 25%,#f2f4e9 45%,#e9eddf 65%); background-size: 250% 100%; border-radius: 5px; animation: skeleton 1.8s ease-in-out infinite; }
 @keyframes skeleton { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+@media (max-width: 760px) {
+  .page-heading { display: block; position: relative; }
+  .page-heading p { max-width: 100%; }
+  .page-heading-actions { padding-top: 13px; }
+  .page-heading-actions:has(.date-pill) { position: absolute; top: 0; right: 0; padding-top: 0; }
+  .page-heading-actions:empty { display: none; }
+  .button,.tabs button { min-height: 40px; }
+  .demo-badge { min-height: 30px; }
+}

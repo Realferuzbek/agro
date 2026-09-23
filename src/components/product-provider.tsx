@@ -1,11 +1,13 @@
 'use client';
+import { copy } from '@/config/copy';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { advanceSimulation, applySimulationCommand, type SimulationState } from '@/domain';
 
 type Snapshot = { state: SimulationState | null; error: string | null; revision?: number };
-type Session = { isAdmin: boolean; user: { email?: string } | null };
+type Session = { isAdmin: boolean; user: { id?:string; email?: string } | null; role:string|null; permissions:string[]; canManageAdmins:boolean };
+const anonymousSession:Session={isAdmin:false,user:null,role:null,permissions:[],canManageAdmins:false};
 type Command = 'start' | 'pause' | 'resume' | 'stop';
 type ProductContextType = Snapshot & {
   preview: boolean; session: Session; simulationRunning: boolean; speed: number;
@@ -20,18 +22,18 @@ export function useProduct() { const context = useContext(ProductContext); if (!
 export function ProductProvider({ initial, children }: { initial: Snapshot; children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [previewState, setPreviewState] = useState<SimulationState | null>(null);
-  const [session, setSession] = useState<Session>({ isAdmin: false, user: null });
+  const [session, setSession] = useState<Session>(anonymousSession);
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [speed, setSpeed] = useState(60);
   const inFlight = useRef(false);
 
   const refresh = useCallback(async () => {
     try { const response = await fetch('/api/product', { cache: 'no-store' }); const result = await response.json(); setSnapshot(previous => result.state && (result.revision ?? 0) < (previous.revision ?? 0) ? previous : { state: result.state ?? null, error: result.error ?? null, revision: result.revision }); }
-    catch { setSnapshot(previous => ({ ...previous, error: 'The field connection is unavailable. Reconnecting…' })); }
+    catch { setSnapshot(previous => ({ ...previous, error: copy.productProvider.theFieldConnectionIsUnavailableReconnecting })); }
   }, []);
   const refreshSession = useCallback(async () => {
-    try { const response = await fetch('/api/auth/session', { cache: 'no-store' }); const result = await response.json(); setSession({ isAdmin: result.isAdmin === true, user: result.user ?? null }); }
-    catch { setSession({ isAdmin: false, user: null }); }
+    try { const response = await fetch('/api/auth/session', { cache: 'no-store' }); const result = await response.json(); setSession({ isAdmin: result.isAdmin === true, user: result.user ?? null,role:result.role??null,permissions:result.permissions??[],canManageAdmins:result.canManageAdmins===true }); }
+    catch { setSession(anonymousSession); }
   }, []);
   useEffect(() => { void refreshSession(); }, [refreshSession]);
   useEffect(() => {
@@ -63,20 +65,20 @@ export function ProductProvider({ initial, children }: { initial: Snapshot; chil
   const adminAction = useCallback(async (action: string, data: Record<string, unknown> = {}) => {
     const response = await fetch('/api/admin/simulation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, expectedVersion: snapshot.revision ?? snapshot.state?.version, idempotencyKey: crypto.randomUUID(), ...data }) });
     const result = await response.json();
-    if (!response.ok) { if (response.status === 409) await refresh(); throw new Error(result.error ?? 'The action could not be completed.'); }
+    if (!response.ok) { if (response.status === 409) await refresh(); throw new Error(result.error ?? copy.productProvider.theActionCouldNotBeCompleted); }
     if (result.state) setSnapshot({ state: result.state, revision: result.revision, error: null }); else await refresh();
   }, [snapshot.revision, snapshot.state?.version, refresh]);
   useEffect(() => {
-    if (!session.isAdmin || !simulationRunning) return;
+    if (!session.isAdmin || !session.permissions.includes('simulation.manage') || !simulationRunning) return;
     const interval = window.setInterval(async () => {
       if (inFlight.current) return;
       inFlight.current = true;
       try { await adminAction('advance', { minutes: speed / 60 }); }
-      catch (error) { setSimulationRunning(false); setSnapshot(previous => ({ ...previous, error: error instanceof Error ? error.message : 'Simulation paused.' })); }
+      catch (error) { setSimulationRunning(false); setSnapshot(previous => ({ ...previous, error: error instanceof Error ? error.message : copy.productProvider.simulationPaused })); }
       finally { inFlight.current = false; }
     }, 1000);
     return () => clearInterval(interval);
-  }, [session.isAdmin, simulationRunning, speed, adminAction]);
+  }, [session.isAdmin, session.permissions, simulationRunning, speed, adminAction]);
 
   const beginPreview = () => { if (snapshot.state) setPreviewState(applySimulationCommand(structuredClone(snapshot.state), 'start')); };
   const command = (value: Command) => setPreviewState(previous => previous ? applySimulationCommand(previous, value) : previous);

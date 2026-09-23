@@ -53,7 +53,11 @@ The homogeneous MVP has one canonical field soil/crop balance. Zones A–D each 
 fieldEquivalentNetDepthMm = deliveredGrossLiters × efficiency / fieldAreaM2
 ```
 
-Do not divide a zone's delivered volume by zone area and then apply that depth to the entire field. Do not apply efficiency twice. Partial delivery remains in the zone run, while the field receives only the amount actually delivered. An explicitly configured heterogeneous model may own separate zone soil states; it must not run both accounting modes for the same water.
+Do not divide a zone's delivered volume by zone area and then apply that depth to the entire field. Do not apply efficiency twice. Partial delivery remains in the zone run, while the field receives only the amount actually delivered.
+
+`configureZoneSoil` explicitly enables `soilModel.mode = 'zone-specific'`. Configuration supplies a version/source and all four zones, each with its full versioned `AgronomyParameters`, current root-zone depletion and current surface depletion. Areas must match their delivery zones and sum to the field; capillary rise must be zero because the simulation has no groundwater-flux adapter. A running or paused irrigation plan must be stopped before changing this accounting mode.
+
+In the opt-in mode, local soil ledgers are authoritative. Delivery enters only its receiving zone as `grossLiters × localEfficiency / localArea`; actual rain and shared weather apply to every zone. ET, rainfall, delivery and drainage counters remain local and are summarized by area at field level. The supplied current depletion is the configuration checkpoint, so configuring a zone never reapplies earlier rainfall or ET. Zone-specific recommendations and forecasts sum local volumes; `zoneCalculations`, `zoneRecommendations` and `aggregation: 'area-weighted-zone-summary'` preserve the breakdown. All zones retain the same potato stage timeline. This is explicit configured heterogeneity, not independent sensor calibration or a second simultaneous field-water ledger.
 
 Soil sensor values generated from this same field model are consistency observations, not independent evidence for assimilating or correcting their own source state.
 

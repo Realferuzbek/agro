@@ -20,6 +20,11 @@ export interface SimulationState { schemaVersion: 1; id: string; scenarioId: Sce
 export interface WeatherProvider { read(at: string): Promise<Datum<WeatherInput>>; }
 /** Optional for persisted schema-1 compatibility; absent means the configured drip pattern. */
 export interface SimulationState { surfaceWetting?: 'drip' | 'rain'; eventSequence?: number; rainWindowObservedMm?: number; simulationConfiguration?: { version: string; policy: Record<string, unknown>; deviceQualityPolicy: Record<string, unknown>; dripProfile: Record<string, unknown>; cropStageDays: number[]; }; }
+export interface ZoneSoilConfiguration { version: string; source: string; zones: Array<{ zoneId: IrrigationZone['id']; parameters: AgronomyParameters; rootZoneDepletionMm: number; surfaceDepletionMm: number; }>; }
+export interface ZoneSoilLedger { zoneId: IrrigationZone['id']; parameters: AgronomyParameters; rootZoneDepletionMm: number; surfaceDepletionMm: number; calculation: AgronomyResult; surfaceWetting: 'drip' | 'rain'; accounting: { day: string; appliedEtMm: number; observedRainMm: number; netDeliveryMm: number; deepPercolationMm: number; }; }
+export interface SimulationState { soilModel?: { mode: 'zone-specific'; version: string; source: string; configuredAt: string; zones: ZoneSoilLedger[]; }; }
+export interface AgronomyResult { aggregation?: 'area-weighted-zone-summary'; zoneCalculations?: Record<string, AgronomyResult>; }
+export interface Recommendation { zoneRecommendations?: Array<{ zoneId: string; recommendation: Recommendation }>; }
 export interface RainfallProvider { read(at: string): Promise<Datum>; }
 export interface SoilMoistureProvider { read(depthCm: number, at: string): Promise<Datum>; }
 export interface FlowProvider { read(zoneId: string, at: string): Promise<Datum>; }

@@ -4,7 +4,7 @@ import { checkOrigin, failure, HttpError, json, readJson } from '@/lib/server/ht
 
 export async function POST(request:Request) {
   try {
-    checkOrigin(request);const {client}=await requireAdmin();
+    checkOrigin(request);const {client}=await requireAdmin('devices.manage');
     const input=await readJson(request,z.object({deviceId:z.string().min(1).max(80)}).strict());
     const {data:device,error:deviceError}=await client.from('devices').select('*').eq('id',input.deviceId).single();
     if(deviceError)throw deviceError;if(device.mode!=='SIMULATED')throw new HttpError(400,'Physical commissioning is not available. No hardware test was performed.');

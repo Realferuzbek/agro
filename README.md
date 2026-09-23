@@ -18,7 +18,7 @@ npx tsx scripts/bootstrap-admin.ts
 npm run dev
 ```
 
-`setup-local.ts` reads the running local Supabase configuration and writes ignored `.env.local` without printing secrets. It also generates private bootstrap credentials if none exist. Read the email/password locally from that file to sign in; the local admin browser test also uses them. Keep them out of hosted runtime variables. For manual configuration, copy `.env.example` and map `API_URL`, `ANON_KEY` and `SERVICE_ROLE_KEY` from `npx supabase status -o env` to:
+`setup-local.ts` reads the running local Supabase configuration and writes ignored `.env.local` without printing secrets. It also generates private bootstrap credentials if none exist. `bootstrap-admin.ts` binds that confirmed Auth UUID as the protected initial local owner. Read the email/password locally from the ignored file to sign in; the local admin browser test also uses them. Keep them out of hosted runtime variables. For manual configuration, copy `.env.example` and map `API_URL`, `ANON_KEY` and `SERVICE_ROLE_KEY` from `npx supabase status -o env` to:
 
 | Variable | Purpose |
 |---|---|
@@ -40,7 +40,7 @@ Open [the product](http://127.0.0.1:3000) and [Supabase Studio](http://127.0.0.1
 - **Irrigation** tracks sequential zone targets, actual simulated delivery and control state. Public previews are session-isolated.
 - **Forecast** separates expected weather from observed water and evaluates the wait for rain through its expected window.
 - **History** exposes water balance, irrigation and alerts; **Devices** shows understandable quality and freshness.
-- **Admin** controls the authoritative simulation, device integration, simulated commissioning, calculation inspection, versioned parameters and audit records.
+- **Admin** controls the authoritative simulation, device integration, simulated commissioning, calculation inspection, versioned parameters and audit records. **Team & Access** lets owners and explicitly authorized managers administer access within database-enforced limits.
 
 One persistent product-level disclosure identifies simulated data. Each important datum retains source, units, timestamp, quality and provenance. Four zones share the homogeneous field water model; their primary state tracks delivery. Forecast rain never becomes observed water until an observation is applied.
 
@@ -50,17 +50,18 @@ One persistent product-level disclosure identifies simulated data. Each importan
 npm run typecheck
 npm run lint
 npm test
-npm run build
+npm run db:test
 npm run test:integration
+npm run build
 npx playwright install chromium
 npm run test:e2e
 ```
 
-The scientific golden fixture expects ET₀ `5.00947 mm/day`, ETc `5.78869 mm/day`, net irrigation `5.40775 mm`, and gross delivery `60,086.10 L`. Four sequential zones require about 5 h 48 min of nominal pumping before startup/transitions. See [the fixture](docs/GOLDEN_SCENARIOS.md) for inputs and tolerances. `npm run test:integration` runs the real local Supabase/Auth suite; ordinary `npm test` does not opt into it.
+The scientific golden fixture expects ET₀ `5.00947 mm/day`, ETc `5.78869 mm/day`, net irrigation `5.40775 mm`, and gross delivery `60,086.10 L`. Four sequential zones require about 5 h 48 min of nominal pumping before startup/transitions. See [the fixture](docs/GOLDEN_SCENARIOS.md) for inputs and tolerances. `npm run db:test` runs the SQL privilege/RLS assertions; `npm run test:integration` exercises real local Supabase/Auth transactions. Ordinary `npm test` does not opt into the backend integration suite.
 
-**[BUILD_PROGRESS.md](docs/BUILD_PROGRESS.md) is the verification record.** It distinguishes passing checks from unrun or environment-limited gates; availability of a test command does not mean it has passed.
+**[BUILD_PROGRESS.md](docs/BUILD_PROGRESS.md) is the verification record and Definition of Done matrix.** It distinguishes local and hosted evidence from unrun or environment-limited gates; availability of a test command does not mean it has passed.
 
-Hosted Vercel/Supabase deployment is a separate recorded gate. [Deployment instructions](docs/DEPLOYMENT.md) list the exact cloud project, credentials, build configuration and post-deployment verification needed; the current local setup does not establish a live cloud URL.
+Hosted Vercel/Supabase deployment is a separate recorded gate. [Deployment instructions](docs/DEPLOYMENT.md) list the selected Supabase project, remaining Vercel/admin configuration, build settings, `npm run deploy:check` preflight and `npm run deploy:verify -- --url <deployment-url>` read-only smoke check. The local setup does not establish a live cloud URL.
 
 ## Engineering guide
 

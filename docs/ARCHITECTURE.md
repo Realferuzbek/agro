@@ -33,7 +33,7 @@ Forecast input has no edge into actual water accounting. An expected rainfall am
 
 ## State ownership
 
-The homogeneous field owns canonical root-zone and surface evaporation depletion. Four equal zones own irrigation targets, commands and delivery records. Gross delivered zone volumes are summed and converted into field-equivalent net depth exactly once. Separate zone soil balances require explicit configuration; never infer them merely because there are four valves.
+The default homogeneous field owns canonical root-zone and surface evaporation depletion. Four equal zones own irrigation targets, commands and delivery records. Gross delivered zone volumes are summed and converted into field-equivalent net depth exactly once. Independent zone-soil ledgers are available only through explicit versioned configuration of every zone. In that mode the local ledgers own soil water; field values are area-weighted summaries. Four valve identities alone never create four soil models, and the same water is never booked in both accounting modes.
 
 Simulation state owns its injected clock, active scenario, physical command/observed state, accounting history and event sequence. Fixed internal steps make replay independent of how clients group elapsed-time requests. Store timestamps in UTC; render in `Asia/Tashkent`. A simulated reading's freshness is relative to the simulation clock, not today's wall clock.
 
@@ -59,6 +59,6 @@ Farmer routes are Today, Field, Irrigation, Forecast, History and Devices. Techn
 
 One persistent product-level disclosure explains that field/device data are simulated. Value-level provenance remains available in the model and technical explanations. There are no unsupported water-saving/yield claims, fake confidence percentages or claims of FAO endorsement.
 
-English is the current language. Branding, copy, unit formatting and assumptions are centralized to support future Uzbek/Russian translation without duplicating domain logic.
+English is the current language. `src/config/copy.ts` holds the product/admin headings, labels, explanations, actions, fallback messages and chart descriptions, with small formatter functions for interpolated copy; `src/config/access-copy.ts` owns the access-management and invitation/recovery interface. Branding/navigation, unit formatting and scientific/simulation assumptions retain their separate centralized modules. Technical identifiers, units and versioned domain scenario/recommendation messages are not translated as UI labels. Future Uzbek/Russian catalogues can replace presentation copy without duplicating calculations; those translations are not included in this MVP.
 
 See [database](DATABASE.md), [security](SECURITY.md), [simulation](SIMULATION.md), and [hardware integration](HARDWARE_INTEGRATION.md) for operational contracts. [Build progress](BUILD_PROGRESS.md) distinguishes implemented behavior from checks actually run.

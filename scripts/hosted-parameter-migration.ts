@@ -1,0 +1,12 @@
+import { existsSync,readFileSync,writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { DEFAULT_PARAMETERS,DEVICE_QUALITY_POLICY,FAO_SOURCES,POTATO_PARAMETERS,SIMULATION_CONFIGURATION_VERSION,SIMULATION_POLICY } from '../src/domain';
+
+const literal=(value:unknown)=>`'${JSON.stringify(value).replaceAll("'","''")}'::jsonb`;
+const source={title:'AgriFlow versioned runtime parameter registry',organization:'AgriFlow',notes:'Reference coefficients use FAO-56 sources. Stage lengths, policy, device thresholds and drip geometry are configurable demonstration assumptions. Policy 1.0.1 supersedes the older policy-1.0.0 draft; older immutable rows are preserved.',references:FAO_SOURCES};
+const policy={management:{earlyWarningFraction:DEFAULT_PARAMETERS.earlyWarningFraction,actionDepletionFraction:DEFAULT_PARAMETERS.actionDepletionFraction,targetDepletionFraction:DEFAULT_PARAMETERS.targetDepletionFraction},simulation:SIMULATION_POLICY,deviceQuality:DEVICE_QUALITY_POLICY};
+const composite={agronomy:DEFAULT_PARAMETERS,crop:POTATO_PARAMETERS,simulation:SIMULATION_POLICY,deviceQuality:DEVICE_QUALITY_POLICY,simulationConfigurationVersion:SIMULATION_CONFIGURATION_VERSION,componentVersions:{crop:POTATO_PARAMETERS.version,soil:'loam-1.0.0',policy:'policy-1.0.1',irrigation:'drip-1.0.0'}};
+const sql=`-- Generated from the tested domain exports. Add a new migration/version for future changes.\n-- Existing reference versions remain immutable; calculations resolve their exact composite registry version.\ninsert into public.parameter_sets(kind,version,name,parameters,source) values\n('crop','${POTATO_PARAMETERS.version}','Potato coefficient reference 1.0.0',${literal(POTATO_PARAMETERS)},${literal(source)}),\n('policy','policy-1.0.1','Current simulation and device policy 1.0.1',${literal(policy)},${literal(source)}),\n('simulation','${DEFAULT_PARAMETERS.version}','Active potato / loam parameter composite 1.0.0',${literal(composite)},${literal(source)})\non conflict(kind,version) do nothing;\n`;
+const target=resolve('supabase/migrations/202609210007_parameter_registry.sql');
+if(existsSync(target)&&readFileSync(target,'utf8')!==sql)throw new Error('The recorded parameter migration differs. Create a new version instead of modifying an applied migration.');
+writeFileSync(target,sql);console.log('Generated immutable parameter-registry migration from domain exports.');

@@ -67,5 +67,6 @@ The gross volume is divided evenly among the four zones. Total nominal pumping i
 - Invalid values, invalid efficiency and impossible soil/meteorological bounds are rejected or explicitly degraded.
 - Stress and storage stay bounded, with drainage or unmet demand represented when needed.
 - Critical telemetry failures pause control; model-derived sensors never validate themselves as independent measurements.
+- Explicit zone-soil configuration preserves the default golden fixture, requires complete area-matched configuration, preserves the supplied checkpoint, credits delivery only to its receiving zone and projects each zone's rainfall waiting boundary independently.
 
 Run `npm test`. Database concurrency/RLS and browser checks are additional gates, not substitutes for scientific tests. The current results and any unrun environment-dependent checks are recorded in [BUILD_PROGRESS.md](BUILD_PROGRESS.md).

@@ -11,3 +11,5 @@ supabase/.branches/
 .local/
 .vercel/
 *.log
+
+.vercel

@@ -1,7 +1,8 @@
 import { calculateAgronomy, calculateGolden, clamp, cropStage, DEFAULT_PARAMETERS, ENGINE_VERSION, GOLDEN_WEATHER, POTATO_PARAMETERS, rootWaterBalance, runtimeMinutes, surfaceWaterBalance } from './agronomy';
-import type { DeviceReading, FieldAlert, HistoryPoint, IrrigationZone, Recommendation, ScenarioDefinition, ScenarioId, SimulationState } from './types';
+import type { DeviceReading, FieldAlert, HistoryPoint, IrrigationZone, Recommendation, ScenarioDefinition, ScenarioId, SimulationState, ZoneSoilConfiguration } from './types';
 import { DEVICE_QUALITY_POLICY } from './device-policy';
 import { simulatedDeviceReadings } from './providers';
+import { addZoneDailyEt, addZoneDelivery, addZoneRain, configureZoneSoilState, synchronizeZoneSummary, weightedZoneValue, zoneProjectionState } from './zone-soil';
 
 export const DEMO_CLOCK = '2026-04-25T13:00:00.000Z'; // 18:00 Asia/Tashkent; today's ET budget is already accounted for.
 export const SIMULATION_CONFIGURATION_VERSION = 'simulation-demo-1.0.0';
@@ -27,7 +28,7 @@ export const SCENARIOS: readonly ScenarioDefinition[] = [
 const localDate = (clock: string) => new Date(Date.parse(clock) + 5 * 3600000).toISOString().slice(0, 10);
 const iso = (milliseconds: number) => new Date(milliseconds).toISOString();
 const sumDelivery = (state: SimulationState) => state.zones.reduce((sum, zone) => sum + zone.deliveredVolumeLiters, 0);
-const meanMoisture = (state: SimulationState) => 100 * (state.soil.fieldCapacity - state.soil.rootZoneDepletionMm / (1000 * state.field.rootDepthM));
+const meanMoisture = (state: SimulationState) => state.soilModel ? 100 * weightedZoneValue(state, zone => zone.parameters.fieldCapacity - zone.rootZoneDepletionMm / (1000 * zone.parameters.rootDepthM)) : 100 * (state.soil.fieldCapacity - state.soil.rootZoneDepletionMm / (1000 * state.field.rootDepthM));
 
 function event(state: SimulationState, type: string, message: string) { const sequence = (state.eventSequence ?? state.events.reduce((maximum, item) => { const suffix = Number(item.id.split(':').at(-1)); return Number.isSafeInteger(suffix) && suffix >= 0 ? Math.max(maximum, suffix) : maximum; }, 0)) + 1; state.eventSequence = sequence; state.events.push({ id: `${state.id}:${state.elapsedSeconds}:${sequence}`, at: state.clock, type, message }); if (state.events.length > 500) state.events.shift(); }
 function alert(state: SimulationState, type: FieldAlert['type'], severity: FieldAlert['severity'], title: string, message: string, evidence: string, causes: string[] = []) {
@@ -62,6 +63,10 @@ function forecastWeather(state: SimulationState, index: number, date: string) { 
 export interface NoRainProjectionPoint { at: string; depletionMm: number; rawMm: number; actionThresholdMm: number; }
 /** Examine every hourly step and daily threshold boundary, without modifying the observation ledger. */
 export function projectNoRainWindow(state: SimulationState, until: string): { points: NoRainProjectionPoint[]; safe: boolean } {
+  if (state.soilModel) {
+    const local = state.soilModel.zones.map(zone => projectNoRainWindow(zoneProjectionState(state, zone), until));
+    return { safe: local.every(projection => projection.safe), points: local[0].points.map((point, index) => ({ at: point.at, depletionMm: weightedZoneValue(state, zone => local[state.soilModel!.zones.indexOf(zone)].points[index].depletionMm), rawMm: weightedZoneValue(state, zone => local[state.soilModel!.zones.indexOf(zone)].points[index].rawMm), actionThresholdMm: weightedZoneValue(state, zone => local[state.soilModel!.zones.indexOf(zone)].points[index].actionThresholdMm) })) };
+  }
   const start = Date.parse(state.clock), end = Date.parse(until);
   if (!Number.isFinite(end) || end - start > 7 * 86400000) throw new Error('Rain forecast window must be within seven days');
   const points: NoRainProjectionPoint[] = [{ at: state.clock, depletionMm: state.soil.rootZoneDepletionMm, rawMm: state.soil.rawMm, actionThresholdMm: state.soil.rawMm * state.parameters.actionDepletionFraction }];
@@ -85,6 +90,7 @@ export function projectNoRainWindow(state: SimulationState, until: string): { po
 }
 export function projectedNoRainDepletion(state: SimulationState, until: string): number { return projectNoRainWindow(state, until).points.at(-1)!.depletionMm; }
 function updateRecommendation(state: SimulationState) {
+  if (state.soilModel) { updateZoneRecommendations(state); return; }
   const target = state.parameters.targetDepletionFraction * state.soil.rawMm;
   const quality = assessDataQuality(state), confidence = quality.status, projection = projectNoRainWindow(state, state.rain.windowEnd), projected = projection.points.at(-1)!.depletionMm;
   const windowOpen = Date.parse(state.clock) < Date.parse(state.rain.windowEnd);
@@ -107,8 +113,21 @@ function updateRecommendation(state: SimulationState) {
   state.recommendation = { status, title: titles[status], reason, netDepthMm, grossDepthMm, netVolumeLiters: netDepthMm * state.field.areaM2, grossVolumeLiters, estimatedRuntimeMinutes: runtimes.reduce((a, b) => a + b, 0), perZoneRuntimeMinutes: runtimes.reduce((a, b) => a + b, 0) / 4, targetDepletionMm: target, confidence, engineVersion: ENGINE_VERSION, parameterVersion: state.parameters.version, calculatedAt: state.clock, projectedNoRainDepletionMm: projected };
   if (state.status === 'idle' || state.status === 'stopped') for (const zone of state.zones) { zone.targetVolumeLiters = grossVolumeLiters / 4; zone.estimatedRuntimeMinutes = runtimeMinutes(zone.targetVolumeLiters, zone.nominalFlowM3h); }
 }
+function updateZoneRecommendations(state: SimulationState) {
+  synchronizeZoneSummary(state);
+  const local = state.soilModel!.zones.map(ledger => { const view = zoneProjectionState(state, ledger); if (state.status === 'running' && state.zones.find(zone => zone.id === ledger.zoneId)!.targetVolumeLiters === 0) view.status = 'idle'; updateRecommendation(view); return { zoneId: ledger.zoneId, recommendation: view.recommendation }; });
+  const quality = assessDataQuality(state);
+  const status: Recommendation['status'] = quality.status === 'Degraded' || state.control.pauseReason ? 'blocked' : state.status === 'running' ? 'irrigating' : local.some(item => item.recommendation.status === 'irrigate') ? 'irrigate' : local.some(item => item.recommendation.status === 'wait-for-rain') ? 'wait-for-rain' : state.status === 'completed' ? 'complete' : 'monitor';
+  const selected = local.find(item => item.recommendation.status === status)?.recommendation ?? local[0].recommendation;
+  const grossVolumeLiters = local.reduce((sum, item) => sum + item.recommendation.grossVolumeLiters, 0), netVolumeLiters = local.reduce((sum, item) => sum + item.recommendation.netVolumeLiters, 0);
+  const runtime = local.reduce((sum, item) => { const zone = state.zones.find(zone => zone.id === item.zoneId)!; return sum + runtimeMinutes(item.recommendation.grossVolumeLiters, zone.flowM3h > 0 ? zone.flowM3h : zone.nominalFlowM3h); }, 0);
+  state.recommendation = { ...selected, status, grossVolumeLiters, netVolumeLiters, grossDepthMm: grossVolumeLiters / state.field.areaM2, netDepthMm: netVolumeLiters / state.field.areaM2, estimatedRuntimeMinutes: runtime, perZoneRuntimeMinutes: runtime / state.zones.length, targetDepletionMm: weightedZoneValue(state, zone => zone.calculation.targetDepletionMm), projectedNoRainDepletionMm: weightedZoneValue(state, zone => local.find(item => item.zoneId === zone.zoneId)!.recommendation.projectedNoRainDepletionMm), parameterVersion: state.soilModel!.version, zoneRecommendations: local, reason: `Explicit zone soil accounting: ${selected.reason}` };
+  if (state.status === 'idle' || state.status === 'stopped') for (const zone of state.zones) { zone.targetVolumeLiters = local.find(item => item.zoneId === zone.id)!.recommendation.grossVolumeLiters; zone.estimatedRuntimeMinutes = runtimeMinutes(zone.targetVolumeLiters, zone.nominalFlowM3h); }
+}
 /** Recompute management outputs without reapplying ET, observed rain or delivery. */
 export function recalculateRecommendation(state: SimulationState): SimulationState { const next = structuredClone(state); updateRecommendation(next); return next; }
+/** Opt-in only: all four explicit, versioned local states are required. */
+export function configureZoneSoil(state: SimulationState, configuration: ZoneSoilConfiguration): SimulationState { const next = configureZoneSoilState(state, configuration); event(next, 'soil-configuration', `Explicit zone soil accounting configured: ${configuration.version}.`); updateRecommendation(next); return next; }
 
 function readings(state: SimulationState) {
   const old = new Map(state.devices.map(device => [device.id, device]));
@@ -170,7 +189,8 @@ export function applySimulationCommand(state: SimulationState, command: 'start' 
       if (next.status === 'running' || next.status === 'paused') return next;
       if (next.recommendation.status !== 'irrigate') { event(next, 'control-blocked', 'No irrigation is currently required.'); return next; }
       next.control.activeZoneIndex = 0; next.control.deliveredVolumeLiters = 0; next.control.runTargetLiters = next.recommendation.grossVolumeLiters; next.control.runStartedAt = next.clock;
-      for (const zone of next.zones) { zone.deliveredVolumeLiters = 0; zone.targetVolumeLiters = next.control.runTargetLiters / 4; zone.state = 'idle'; }
+      for (const zone of next.zones) { zone.deliveredVolumeLiters = 0; zone.targetVolumeLiters = next.soilModel ? next.recommendation.zoneRecommendations!.find(item => item.zoneId === zone.id)!.recommendation.grossVolumeLiters : next.control.runTargetLiters / 4; zone.estimatedRuntimeMinutes = runtimeMinutes(zone.targetVolumeLiters, zone.nominalFlowM3h); zone.state = zone.targetVolumeLiters > 0 ? 'idle' : 'completed'; }
+      next.control.activeZoneIndex = next.zones.findIndex(zone => zone.targetVolumeLiters > 0);
     } else if (next.status !== 'paused') return next;
     next.status = 'running'; next.control.activeZoneSeconds = 0; next.control.pumpState = 'STARTING'; next.control.rainPaused = false;
     next.zones[next.control.activeZoneIndex].state = 'opening'; next.zones[next.control.activeZoneIndex].valveState = 'OPENING';
@@ -179,16 +199,24 @@ export function applySimulationCommand(state: SimulationState, command: 'start' 
   readings(next); updateRecommendation(next); return next;
 }
 
-function applyRain(state: SimulationState, amountMm: number) {
+function applyRain(state: SimulationState, amountMm: number, observedAt = state.clock) {
   if (amountMm <= 0) return;
-  const balance = rootWaterBalance(state.soil.rootZoneDepletionMm, amountMm, 0, 0, 0, state.soil.tawMm);
-  state.soil.rootZoneDepletionMm = balance.depletionMm; state.soil.deepPercolationMm += balance.deepPercolationMm;
-  state.soil.surfaceDepletionMm = Math.max(0, state.soil.surfaceDepletionMm - amountMm);
-  state.rain.observedMm += amountMm; state.accounting.observedRainMm += amountMm; state.rain.eventOpen = true; state.rain.lastRainAt = state.clock;
-  if (Date.parse(state.clock) >= Date.parse(state.rain.windowStart) && Date.parse(state.clock) <= Date.parse(state.rain.windowEnd)) state.rainWindowObservedMm = (state.rainWindowObservedMm ?? 0) + amountMm;
+  if (state.soilModel) addZoneRain(state, amountMm);
+  else {
+    const balance = rootWaterBalance(state.soil.rootZoneDepletionMm, amountMm, 0, 0, 0, state.soil.tawMm);
+    state.soil.rootZoneDepletionMm = balance.depletionMm; state.soil.deepPercolationMm += balance.deepPercolationMm;
+    state.soil.surfaceDepletionMm = Math.max(0, state.soil.surfaceDepletionMm - amountMm); state.accounting.observedRainMm += amountMm;
+  }
+  if (Date.parse(observedAt) >= Date.parse(state.rain.windowStart) && Date.parse(observedAt) <= Date.parse(state.rain.windowEnd)) state.rainWindowObservedMm = (state.rainWindowObservedMm ?? state.rain.observedMm) + amountMm;
+  state.rain.observedMm += amountMm; state.rain.eventOpen = true; state.rain.lastRainAt = observedAt;
   // FAO chapter 7 simplified wetting rule: meaningful rain wets the exposed surface; later drip restores its local pattern.
-  if (state.rain.scenarioReceivedMm + amountMm >= SIMULATION_POLICY.surfaceWettingRainMm) state.surfaceWetting = 'rain';
+  if (state.rain.observedMm >= SIMULATION_POLICY.surfaceWettingRainMm) { state.surfaceWetting = 'rain'; if (state.soilModel) for (const zone of state.soilModel.zones) zone.surfaceWetting = 'rain'; }
   if (state.status === 'running') { state.status = 'paused'; state.control.rainPaused = true; stopHydraulics(state, 'paused'); event(state, 'rain', 'Observed rain paused irrigation; the remaining plan will be reassessed.'); }
+}
+/** Shared observed-rain transition; callers authenticate/deduplicate observations before invoking it. */
+export function applyObservedRainfall(state: SimulationState, amountMm: number, observedAt = state.clock): SimulationState {
+  if (!Number.isFinite(amountMm) || amountMm < 0 || !Number.isFinite(Date.parse(observedAt)) || localDate(observedAt) !== localDate(state.clock)) throw new Error('Observed rainfall must be nonnegative and belong to the current model day');
+  const next = structuredClone(state); applyRain(next, amountMm, observedAt); reviseRainPausedPlan(next); updateRecommendation(next); return next;
 }
 function scenarioRain(state: SimulationState) {
   const total = state.scenarioId === 'rain-succeeds' ? 7 : state.scenarioId === 'unexpected-storm' ? 12 : 0;
@@ -202,13 +230,26 @@ function scenarioRain(state: SimulationState) {
     event(state, 'forecast-reconciled', 'Forecast and observation reconciled without changing observed rainfall.');
   }
   if (state.scenarioId === 'unexpected-storm' && state.rain.scenarioReceivedMm > 1) alert(state, 'UNEXPECTED_RAIN', 'warning', 'Unexpected rainfall', 'Observed rain is reducing the irrigation requirement.', `Forecast ${state.rain.forecastMm} mm; additional observed rain ${state.rain.scenarioReceivedMm.toFixed(1)} mm.`);
+  reviseRainPausedPlan(state);
+}
+function reviseRainPausedPlan(state: SimulationState) {
   if (state.control.rainPaused) {
     const remainingNet = Math.max(0, state.soil.rootZoneDepletionMm - state.parameters.targetDepletionFraction * state.soil.rawMm);
-    const remainingLiters = remainingNet * state.field.areaM2 / state.parameters.applicationEfficiency;
+    let remainingLiters = remainingNet * state.field.areaM2 / state.parameters.applicationEfficiency;
     const unfinished = state.zones.filter(zone => zone.state !== 'completed');
-    for (const zone of unfinished) zone.targetVolumeLiters = zone.deliveredVolumeLiters + remainingLiters / unfinished.length;
+    if (state.soilModel) {
+      remainingLiters = 0;
+      for (const zone of unfinished) {
+        const ledger = state.soilModel.zones.find(item => item.zoneId === zone.id)!;
+        const remaining = Math.max(0, ledger.rootZoneDepletionMm - ledger.calculation.targetDepletionMm) * ledger.parameters.fieldAreaM2 / ledger.parameters.applicationEfficiency;
+        zone.targetVolumeLiters = zone.deliveredVolumeLiters + remaining; remainingLiters += remaining;
+        if (remaining <= 1e-8) zone.state = 'completed';
+      }
+      const nextZone = state.zones.findIndex(zone => zone.state !== 'completed');
+      if (nextZone >= 0) state.control.activeZoneIndex = nextZone;
+    } else for (const zone of unfinished) zone.targetVolumeLiters = zone.deliveredVolumeLiters + remainingLiters / unfinished.length;
     state.control.runTargetLiters = sumDelivery(state) + remainingLiters;
-    if (remainingLiters === 0) { state.status = 'completed'; stopHydraulics(state, 'completed'); state.control.rainPaused = false; event(state, 'control', 'Rain supplied the remaining need; the irrigation plan was cancelled.'); }
+    if (remainingLiters <= 1e-8) { state.status = 'completed'; stopHydraulics(state, 'completed'); state.control.rainPaused = false; event(state, 'control', 'Rain supplied the remaining need; the irrigation plan was cancelled.'); }
   }
 }
 
@@ -218,8 +259,17 @@ function dailyEt(state: SimulationState) {
     const daysAfterPlanting = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${state.field.plantingDate}T00:00:00Z`)) / 86400000);
     const crop = cropStage(daysAfterPlanting); state.field.daysAfterPlanting = daysAfterPlanting; state.field.growthStage = crop.stage;
     state.parameters.kcb = crop.kcb; state.weather.date = date;
-    state.calculation = calculateAgronomy({ weather: state.weather, parameters: state.parameters, rootZoneDepletionMm: state.soil.rootZoneDepletionMm, surfaceDepletionMm: state.soil.surfaceDepletionMm, observedRainMm: 0, surfaceWetting: state.surfaceWetting });
-    state.soil.rawMm = state.calculation.rawMm;
+    if (state.soilModel) {
+      for (const zone of state.soilModel.zones) {
+        zone.parameters.kcb = crop.kcb;
+        zone.calculation = calculateAgronomy({ weather: state.weather, parameters: zone.parameters, rootZoneDepletionMm: zone.rootZoneDepletionMm, surfaceDepletionMm: zone.surfaceDepletionMm, observedRainMm: 0, surfaceWetting: zone.surfaceWetting });
+        zone.accounting = { day: date, appliedEtMm: 0, observedRainMm: 0, netDeliveryMm: 0, deepPercolationMm: 0 };
+      }
+      synchronizeZoneSummary(state);
+    } else {
+      state.calculation = calculateAgronomy({ weather: state.weather, parameters: state.parameters, rootZoneDepletionMm: state.soil.rootZoneDepletionMm, surfaceDepletionMm: state.soil.surfaceDepletionMm, observedRainMm: 0, surfaceWetting: state.surfaceWetting });
+      state.soil.rawMm = state.calculation.rawMm;
+    }
     state.accounting.day = date; state.accounting.appliedEtMm = 0;
     state.rain.observedMm = 0;
     const forecastDay = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse('2026-04-25T00:00:00Z')) / 86400000);
@@ -231,6 +281,7 @@ function dailyEt(state: SimulationState) {
     state.rainWindowObservedMm = 0;
     event(state, 'daily-balance', 'A new daily ET budget was computed from the versioned scientific engine.');
   }
+  if (state.soilModel) { addZoneDailyEt(state); return; }
   // Demo allocation: daily ET is uniformly distributed from 06:00 to 18:00 local. This is not an hourly FAO model.
   const local = new Date(Date.parse(state.clock) + 5 * 3600000), seconds = local.getUTCHours() * 3600 + local.getUTCMinutes() * 60 + local.getUTCSeconds();
   const fraction = clamp((seconds - 6 * 3600) / (12 * 3600), 0, 1);
@@ -266,10 +317,13 @@ function hydraulicTick(state: SimulationState) {
   const delivered = Math.min(remaining, failureFlow * (previousRamp + ramp) / 2 * 1000 / 3600);
   zone.deliveredVolumeLiters += delivered; state.control.deliveredVolumeLiters += delivered;
   if (delivered > 0) state.surfaceWetting = 'drip';
-  const netDepth = delivered * state.parameters.applicationEfficiency / state.field.areaM2;
-  const balance = rootWaterBalance(state.soil.rootZoneDepletionMm, 0, 0, netDepth, 0, state.soil.tawMm);
-  state.soil.rootZoneDepletionMm = balance.depletionMm; state.soil.deepPercolationMm += balance.deepPercolationMm; state.accounting.netDeliveryMm += netDepth;
-  state.soil.surfaceDepletionMm = Math.max(0, state.soil.surfaceDepletionMm - netDepth / state.parameters.wettedFraction);
+  if (state.soilModel) { if (delivered > 0) addZoneDelivery(state, zone.id, delivered); }
+  else {
+    const netDepth = delivered * state.parameters.applicationEfficiency / state.field.areaM2;
+    const balance = rootWaterBalance(state.soil.rootZoneDepletionMm, 0, 0, netDepth, 0, state.soil.tawMm);
+    state.soil.rootZoneDepletionMm = balance.depletionMm; state.soil.deepPercolationMm += balance.deepPercolationMm; state.accounting.netDeliveryMm += netDepth;
+    state.soil.surfaceDepletionMm = Math.max(0, state.soil.surfaceDepletionMm - netDepth / state.parameters.wettedFraction);
+  }
   if (seconds >= SIMULATION_POLICY.pumpRampSeconds + SIMULATION_POLICY.valveRampSeconds + SIMULATION_POLICY.anomalyGraceSeconds) {
     let type: FieldAlert['type'] | null = null, title = '', reason = '';
     if (zone.flowM3h > zone.nominalFlowM3h * SIMULATION_POLICY.highFlowRatio) { type = 'HIGH_FLOW'; title = 'Abnormally high flow'; reason = 'Possible leak, line failure, or flow-sensor/configuration issue.'; }
@@ -281,6 +335,7 @@ function hydraulicTick(state: SimulationState) {
     zone.deliveredVolumeLiters = zone.targetVolumeLiters; zone.state = 'completed'; zone.flowM3h = 0; zone.pressureBar = 0; zone.valveState = 'CLOSED';
     event(state, 'zone-completed', `${zone.name} delivered its target volume.`);
     state.control.activeZoneIndex++;
+    while (state.control.activeZoneIndex < state.zones.length && state.zones[state.control.activeZoneIndex].state === 'completed') state.control.activeZoneIndex++;
     if (state.control.activeZoneIndex >= state.zones.length) { state.control.activeZoneIndex = state.zones.length - 1; state.status = 'completed'; state.control.pumpState = 'OFF'; event(state, 'run-completed', 'All four zones completed their target volume.'); }
     else { state.control.activeZoneSeconds = 0; state.control.pumpState = 'STARTING'; }
   }
@@ -296,8 +351,11 @@ function sensorTick(state: SimulationState) {
     alert(state, 'TELEMETRY_CONFLICT', 'critical', 'Flow conflicts with controller state', 'A reported flow of 12 m³/h conflicts with closed valves and an idle pump.', 'Pump OFF; valve CLOSED; flow 12 m³/h.', ['Flow meter fault', 'Valve feedback fault', 'Incorrect binding']);
     if (!state.control.pauseReason) pauseForFault(state, 'Conflicting flow and valve data blocks automatic control.');
   }
-  if (state.soil.rootZoneDepletionMm >= state.soil.rawMm) alert(state, 'ROOT_ZONE_STRESS', 'warning', 'Root zone reached the action threshold', 'Use the current recommendation to restore the configured soil-water target.', `Depletion ${state.soil.rootZoneDepletionMm.toFixed(2)} mm; RAW ${state.soil.rawMm.toFixed(2)} mm.`);
-  else { resolveAlert(state, 'ROOT_ZONE_STRESS', 'Observed water delivery/rain reduced depletion below RAW.'); if (state.soil.rootZoneDepletionMm >= state.soil.rawMm * state.parameters.earlyWarningFraction) alert(state, 'ROOT_ZONE_NEAR_STRESS', 'info', 'Root zone is approaching its threshold', 'Watch the forecast and the next irrigation recommendation.', `Depletion ${state.soil.rootZoneDepletionMm.toFixed(2)} mm.`); else resolveAlert(state, 'ROOT_ZONE_NEAR_STRESS', 'Depletion fell below the warning threshold.'); }
+  const stressed = state.soilModel ? state.soilModel.zones.filter(zone => zone.rootZoneDepletionMm >= zone.calculation.rawMm * zone.parameters.actionDepletionFraction) : [];
+  const atAction = state.soilModel ? stressed.length > 0 : state.soil.rootZoneDepletionMm >= state.soil.rawMm * state.parameters.actionDepletionFraction;
+  const nearAction = state.soilModel ? state.soilModel.zones.some(zone => zone.rootZoneDepletionMm >= zone.calculation.rawMm * zone.parameters.earlyWarningFraction) : state.soil.rootZoneDepletionMm >= state.soil.rawMm * state.parameters.earlyWarningFraction;
+  if (atAction) alert(state, 'ROOT_ZONE_STRESS', 'warning', 'Root zone reached the action threshold', 'Use the current recommendation to restore the configured soil-water target.', state.soilModel ? `Zones at their local threshold: ${stressed.map(zone => zone.zoneId).join(', ')}.` : `Depletion ${state.soil.rootZoneDepletionMm.toFixed(2)} mm; RAW ${state.soil.rawMm.toFixed(2)} mm.`);
+  else { resolveAlert(state, 'ROOT_ZONE_STRESS', 'Observed water delivery/rain reduced depletion below RAW.'); if (nearAction) alert(state, 'ROOT_ZONE_NEAR_STRESS', 'info', 'Root zone is approaching its threshold', 'Watch the forecast and the next irrigation recommendation.', `Depletion ${state.soil.rootZoneDepletionMm.toFixed(2)} mm.`); else resolveAlert(state, 'ROOT_ZONE_NEAR_STRESS', 'Depletion fell below the warning threshold.'); }
 }
 
 /** One-second deterministic integration makes a long step identical to partitioned steps. */
@@ -316,9 +374,17 @@ export function advanceSimulation(state: SimulationState, seconds: number): Simu
   next.version += seconds; updateRecommendation(next); return next;
 }
 
-export interface ForecastDay { date: string; temperatureMinC: number; temperatureMaxC: number; condition: 'sunny' | 'partly-cloudy' | 'rain'; rainProbabilityPct: number; rainfallMm: number; remainingRainfallMm: number; observedRainMm: number | null; etoMm: number; etcMm: number; projectedDepletionMm: number; projectedSurfaceDepletionMm: number; rawMm: number; grossVolumeLiters: number; status: 'irrigate' | 'wait-for-rain' | 'monitor'; provenance: 'FORECAST'; }
+export interface ForecastDay { date: string; temperatureMinC: number; temperatureMaxC: number; condition: 'sunny' | 'partly-cloudy' | 'rain'; rainProbabilityPct: number; rainfallMm: number; remainingRainfallMm: number; observedRainMm: number | null; etoMm: number; etcMm: number; projectedDepletionMm: number; projectedSurfaceDepletionMm: number; rawMm: number; grossVolumeLiters: number; status: 'irrigate' | 'wait-for-rain' | 'monitor'; provenance: 'FORECAST'; zones?: Array<{ zoneId: string; forecast: ForecastDay }>; }
 /** Seven-day planning copy; forecast precipitation never enters persisted observed balance. */
 export function buildForecast(state: SimulationState): ForecastDay[] {
+  if (state.soilModel) {
+    const zones = state.soilModel.zones.map(zone => ({ zoneId: zone.zoneId, days: buildForecast(zoneProjectionState(state, zone)) }));
+    return zones[0].days.map((day, index) => {
+      const local = zones.map(zone => ({ zoneId: zone.zoneId, forecast: zone.days[index] }));
+      const average = (key: 'etcMm' | 'projectedDepletionMm' | 'projectedSurfaceDepletionMm' | 'rawMm') => weightedZoneValue(state, zone => local.find(item => item.zoneId === zone.zoneId)!.forecast[key]);
+      return { ...day, etcMm: average('etcMm'), projectedDepletionMm: average('projectedDepletionMm'), projectedSurfaceDepletionMm: average('projectedSurfaceDepletionMm'), rawMm: average('rawMm'), grossVolumeLiters: local.reduce((sum, item) => sum + item.forecast.grossVolumeLiters, 0), status: local.some(item => item.forecast.status === 'irrigate') ? 'irrigate' : local.some(item => item.forecast.status === 'wait-for-rain') ? 'wait-for-rain' : 'monitor', zones: local };
+    });
+  }
   const result: ForecastDay[] = []; let depletion = state.soil.rootZoneDepletionMm, surface = state.soil.surfaceDepletionMm, wetting = state.surfaceWetting ?? 'drip';
   for (let index = 0; index < 7; index++) {
     const date = localDate(iso(Date.parse(state.clock) + index * 86400000));
@@ -335,7 +401,7 @@ export function buildForecast(state: SimulationState): ForecastDay[] {
       const surfaceBalance = surfaceWaterBalance(surface, rain, 0, 0, remainingEvaporation, state.parameters.wettedFraction, state.calculation.exposedWettedFraction, state.calculation.tewMm);
       calculation.rootZoneDepletionMm = balance.depletionMm;
       calculation.surfaceDepletionMm = surfaceBalance.depletionMm;
-      calculation.netDepthMm = balance.depletionMm >= calculation.rawMm ? Math.max(0, balance.depletionMm - calculation.targetDepletionMm) : 0;
+      calculation.netDepthMm = balance.depletionMm >= calculation.rawMm * state.parameters.actionDepletionFraction ? Math.max(0, balance.depletionMm - calculation.targetDepletionMm) : 0;
       calculation.grossVolumeLiters = calculation.netDepthMm / state.parameters.applicationEfficiency * state.field.areaM2;
     }
     const status = calculation.grossVolumeLiters > 0 ? 'irrigate' : rain > 0 ? 'wait-for-rain' : 'monitor';

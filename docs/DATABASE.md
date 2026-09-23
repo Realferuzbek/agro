@@ -21,7 +21,8 @@ The configured ports are API `54321`, PostgreSQL `54322`, Studio `54323`, and lo
 
 | Tables | Purpose |
 |---|---|
-| `profiles` | Auth user mapping and database-owned `farmer` / `admin` role |
+| `profiles` | Auth user mapping; database-owned `farmer` / `admin` / `owner` role, operational permissions, management flag and disabled state |
+| `private.owner_registry`, `admin_invitations` | Immutable initial-owner UUID binding and audited administration invitation lifecycle |
 | `farms`, `fields` | Public-demo designation, field identity, area and configuration |
 | `parameter_sets` | Versioned crop, soil, policy, irrigation and simulation parameters with source metadata |
 | `devices`, `device_credentials` | Server-owned bindings/mode/configuration and hashed revocable credentials |
@@ -37,6 +38,8 @@ The `product_state.state` JSON snapshot is the serialized, versioned domain `Sim
 
 Calculation rows store engine version, parameter version, calculation time, full inputs and outputs, including intermediates. The rows permit reproducing a historical recommendation without reading today's mutable field state. Application clients have no update/delete permission on these records.
 
+Migration `202609210007_parameter_registry.sql` persists the exact tested runtime composite `potato-loam-demo-1.0.0`, crop reference `potato-reference-1.0.0` and current policy `policy-1.0.1`. The composite includes agronomy values, crop-stage assumptions, device-quality policy, simulation configuration and component versions. The older policy draft remains immutable; it is not silently rewritten to resemble the runtime. A registry-parity integration test compares the active persisted composite to domain exports.
+
 ## Transactions and replay
 
 The simulation commit function locks the current field row, checks the existing idempotency record, checks the expected revision, and commits the new state and associated bundle as one PostgreSQL transaction. The bundle includes calculation/recommendation snapshots, generated observations, telemetry/latest values, events, alerts, delivery history and audit evidence.
@@ -51,7 +54,7 @@ The optional measured-model transaction locks credential, device, field configur
 
 RLS is enabled on every exposed application table. Anonymous reads are limited to intentionally public demo projections and reference parameter data. Raw telemetry payloads, mutation logs, commissioning history, audits and credentials are not public reads. Ordinary authenticated users can read their own profile; they cannot update their role.
 
-Admin status comes from `profiles`, not user-editable metadata. New Auth users always receive the `farmer` default. Controlled server/database bootstrap is the only first-admin path. Private security-definer functions use an empty search path and explicit schema names; exposed wrappers use invoker context. See [security](SECURITY.md).
+Administrative authority comes from `profiles`, not user-editable metadata. New Auth users always receive the `farmer` default. Controlled server/database bootstrap binds the confirmed initial owner's UUID; profile/Auth triggers protect that owner and prevent client role escalation. Capability-aware RLS/RPC checks restrict operational and team-management access. Private security-definer functions use an empty search path and explicit schema names; exposed wrappers use invoker context. See [security](SECURITY.md).
 
 Realtime publishes compact current product state, alerts and latest device state. History queries should be bounded and ordered by the indexed field/device timestamp columns; never reload all raw history for a dashboard refresh.
 
@@ -61,4 +64,6 @@ The public `/api/history` read exposes the latest 20 shared irrigation sessions 
 
 Database tests must verify anonymous read limits, role escalation denial, admin checks, duplicate requests, conflicts, revocation, out-of-order observation handling, and rollback. These are integration checks against running PostgreSQL/Auth; unit mocks cannot establish that RLS works. See [build progress](BUILD_PROGRESS.md) for executed versus environment-blocked results.
 
-Run the TypeScript integration suite explicitly with `npm run test:integration`; it loads the local environment, rejects hosted URLs, and enables the integration tests. This is the repository's real PostgreSQL/Auth/RLS test gate. `db:test` is the Supabase CLI's optional pgTAP runner; no separate pgTAP SQL suite is currently checked in, so it is not a substitute for the integration gate. A normal domain-only Vitest run is not evidence that these local backend checks passed.
+Run `npm run db:test` for the 12 pgTAP assertions in `supabase/tests/security.test.sql`: required tables, RLS coverage, anonymous/authenticated grants, role-write denial, private credential/telemetry access, restricted ingestion and exposed RPC security mode. The SQL suite runs inside a rolled-back transaction.
+
+Run the TypeScript integration suite explicitly with `npm run test:integration`; it loads the local environment, rejects hosted URLs, and enables real PostgreSQL/Auth transaction tests. This complements SQL privilege assertions with authenticated behavior, concurrency, rollback and telemetry accounting. A normal domain-only Vitest run is not evidence that either local backend gate passed.

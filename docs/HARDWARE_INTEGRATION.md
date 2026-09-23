@@ -18,6 +18,8 @@ No physical hardware is installed in this MVP. All commissioning, valve/pump beh
 
 Controller desired states are `OPEN`/`CLOSED`; observed states may also be `UNKNOWN`. A sent command is not proof of actuation. Preserve command identity across retries and check acknowledgment, deadline, observed valve state, pressure and flow before crediting delivery.
 
+`src/domain/providers.ts` implements all seven simulated provider contracts and their factory. The scenario engine uses `simulatedDeviceReadings`; it does not maintain a second unrelated sensor generator. A controller's dispatch callback belongs to the caller's authorized control boundary. Acknowledgment can precede an observed open valve during startup. See [simulation](SIMULATION.md) for the configured freshness and critical-channel policy.
+
 ## Device identity and tokens
 
 An administrator registers the device's identity, kind, field/optional-zone binding, mode and configuration. Credentials are generated with high entropy, stored as hashes, scoped to that device and revocable. Capture the plaintext token when issued; later metadata views show only identifying prefixes and lifecycle timestamps.

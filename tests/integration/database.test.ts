@@ -1,7 +1,7 @@
 import { afterAll,beforeAll,describe,expect,it,vi } from 'vitest';
 import { createClient,type SupabaseClient } from '@supabase/supabase-js';
 import { createHash,randomBytes,randomUUID } from 'node:crypto';
-import { createSimulation } from '@/domain';
+import { createSimulation,DEFAULT_PARAMETERS,DEVICE_QUALITY_POLICY,POTATO_PARAMETERS,SIMULATION_POLICY } from '@/domain';
 import type { SimulationState } from '@/domain/types';
 import { telemetrySchema } from '@/lib/server/telemetry-contract';
 import { applyMeasuredObservation } from '@/lib/server/telemetry-model';
@@ -50,11 +50,13 @@ describe.skipIf(!enabled)('real PostgreSQL, Supabase Auth, RLS and ingestion',()
     if(!url||!['127.0.0.1','localhost'].includes(new URL(url).hostname))throw new Error('Integration tests require the local Supabase stack.');
     const options={auth:{persistSession:false,autoRefreshToken:false}};
     service=createClient(url,process.env.SUPABASE_SERVICE_ROLE_KEY!,options);anonymous=createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,options);
+    const owner=createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,options);
+    expect((await owner.auth.signInWithPassword({email:process.env.AGRIFLOW_ADMIN_EMAIL!,password:process.env.AGRIFLOW_ADMIN_PASSWORD!})).error).toBeNull();
     async function identity(role:'admin'|'farmer'){
       const email=`test-${randomUUID()}@agriflow.test`,password=randomBytes(24).toString('base64url');
       const created=await service.auth.admin.createUser({email,password,email_confirm:true});expect(created.error).toBeNull();
       const userId=created.data.user!.id;users.push(userId);
-      const promoted=await service.from('profiles').update({role}).eq('id',userId);expect(promoted.error).toBeNull();
+      if(role==='admin'){const promoted=await owner.rpc('manage_admin_access',{p_user_id:userId,p_changes:{role,permissions:['simulation.manage','devices.manage','parameters.manage','audit.read']}});expect(promoted.error).toBeNull();}
       const client=createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,options);
       const signed=await client.auth.signInWithPassword({email,password});expect(signed.error).toBeNull();return {client,userId};
     }
@@ -82,6 +84,12 @@ describe.skipIf(!enabled)('real PostgreSQL, Supabase Auth, RLS and ingestion',()
     expect((await anonymous.from('telemetry').select('*')).error).not.toBeNull();
     expect((await anonymous.from('audit_logs').select('*')).error).not.toBeNull();
     expect((await anonymous.from('device_credentials').select('*')).error).not.toBeNull();
+  });
+  it('resolves the recorded composite version to the exact active domain and device policy',async()=>{
+    const result=await anonymous.from('parameter_sets').select('parameters').eq('kind','simulation').eq('version',DEFAULT_PARAMETERS.version).single();
+    expect(result.error).toBeNull();expect(result.data?.parameters.agronomy).toEqual(DEFAULT_PARAMETERS);
+    expect(result.data?.parameters.simulation).toEqual(SIMULATION_POLICY);expect(result.data?.parameters.deviceQuality).toEqual(DEVICE_QUALITY_POLICY);
+    expect(result.data?.parameters.componentVersions).toMatchObject({crop:POTATO_PARAMETERS.version,soil:'loam-1.0.0',policy:'policy-1.0.1',irrigation:'drip-1.0.0'});
   });
   it('denies public mutations and prevents farmer role escalation',async()=>{
     const {fieldId,state}=await createField(true);

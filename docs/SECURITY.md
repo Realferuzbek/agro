@@ -4,21 +4,27 @@ The farmer product is a public simulated demonstration. Shared-state changes are
 
 ## Human identity and roles
 
-Supabase Auth verifies the signed-in identity. Server handlers and database functions require the corresponding database `profiles.role = 'admin'`. New Auth users receive `farmer`; client-supplied user metadata cannot grant authority. No anonymous or ordinary authenticated client has direct table write grants.
+Supabase Auth verifies the signed-in identity. Server handlers and database functions require an enabled database profile with role `admin` or `owner`, plus the permission required by the operation. New Auth users receive `farmer`; client-supplied user metadata cannot grant authority. No anonymous or ordinary authenticated client has direct profile-role write grants.
+
+Operational permissions are `simulation.manage`, `devices.manage`, `parameters.manage` and `audit.read`. Owners have all of them. An admin receives an explicit subset; the separate `can_manage_admins` flag permits delegated team management. Server checks and database RPC/RLS checks enforce these boundaries independently, including fresh profile reads after disabling access.
 
 Browser-visible Supabase anonymous keys are identifiers for RLS-governed access, not admin credentials. `SUPABASE_SERVICE_ROLE_KEY` bypasses ordinary RLS and is strictly server-only. Never prefix it with `NEXT_PUBLIC_`, return it in an API response, put it in browser storage, or commit it. `.env.local` is local secret configuration.
 
 Use verified server-side Auth identity rather than trusting a cookie payload alone. Keep auth/session handling dynamic rather than shared-cacheable. The project uses cookie-aware Supabase server/browser clients; see the [official server-side guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client).
 
-## First administrator
+## Initial owner and team management
 
-The first admin is created by `npx tsx scripts/bootstrap-admin.ts`, using Supabase's administrative user API plus a database role update. Supply the email and a strong unique password through private environment values (`AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD`) and the server-only service-role key. The routine must run on the operator's trusted machine or deployment job, never in a client component or public signup endpoint.
+The first local owner is created by `npx tsx scripts/bootstrap-admin.ts`, using Supabase's administrative user API and the server-only `bootstrap_initial_owner` RPC. Supply the email and a strong unique password through private environment values (`AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD`) and the server-only service-role key. The routine must run on the operator's trusted machine, never in a client component or public signup endpoint.
 
-The database role is authoritative even if an Auth record contains `role: admin` metadata. Provisioning an Auth account alone does not grant admin access. If provisioning fails between account creation and role assignment, inspect the profile using a privileged database connection; the account remains a farmer until the trusted role update succeeds.
+The database role is authoritative even if an Auth record contains `role: admin` or `owner` metadata. Provisioning an Auth account alone does not grant administrative access. The bootstrap requires a confirmed identity and stores its UUID in `private.owner_registry`, serializes concurrent attempts, audits the binding, and rejects replacement by a different UUID. Repeating it for the same UUID is idempotent. An interrupted account creation remains unprivileged until trusted binding succeeds.
 
-The repository bootstrap rejects hosted URLs and resets an existing local account's password to the private bootstrap value so a repeat setup has a consistent login. For hosted deployment, the operator creates the Auth user through privileged Supabase management and promotes its verified UUID using privileged SQL; the exact procedure is in [deployment](DEPLOYMENT.md). No browser self-assignment path is added for convenience.
+The local bootstrap rejects hosted URLs and resets an existing local account's password to the private bootstrap value so repeated setup has a consistent login. The separate target-restricted hosted bootstrap preserves an existing account's password and creates a generated password only for a missing designated identity. It binds that UUID through the same protected RPC. See [deployment](DEPLOYMENT.md) for commands and recovery. No browser self-assignment or direct-profile promotion path is offered.
 
-After successful creation, use the normal `/admin` flow. The local admin browser test reads credentials from ignored `.env.local`; keep them private and out of hosted runtime variables. Do not keep an example administrator password in seed SQL. Local public signup is disabled. TOTP enrollment/verification can be enabled by Supabase, but enforcing MFA assurance level is a future policy change; this MVP's administrator login uses email/password.
+The initial owner cannot be demoted, disabled, deleted or replaced. Other owners can be managed only by owners, and the final enabled owner cannot be removed. No actor can edit its own access through management. Delegated admin managers cannot grant ownership, affect an owner, or delegate operational permissions they do not hold. Database triggers also protect owner Auth UUID/email/phone changes, deletion and bans; ordinary password-change/recovery flows remain available. Trusted recovery preserves identity and roles.
+
+Team & Access uses `GET /api/admin/access`, `POST /api/admin/access/invitations`, and `PATCH /api/admin/access/users/{id}`. Mutations require same-origin requests, verified manager authorization and schema validation. Invitations record the request first, use the server Auth API for a new identity, then recheck the initiating manager's current permissions before granting rights. An existing identity is reused without changing its password. Failed provider/grant outcomes are audited; a recorded invitation is not proof that email reached an inbox. Raw invitation records are limited by management RLS.
+
+After successful creation, use the normal `/admin` flow. Invitation/recovery acceptance uses `/auth/accept`; tokens are removed from the visible URL before status/error rendering. The local admin browser test reads credentials from ignored `.env.local`; keep them private and out of hosted runtime variables. Do not keep an example administrator password in seed SQL. Local public signup is disabled. TOTP enrollment/verification can be enabled by Supabase, but enforcing MFA assurance level is a future policy change; this MVP's administrator login uses email/password.
 
 The local configuration keeps the email/password provider enabled under `[auth.email]` while top-level `[auth].enable_signup = false` prevents public registration. Disabling the email provider itself prevents administrator password login too. Real admin browser login has been verified with this separation.
 
@@ -36,7 +42,7 @@ Authoritative simulation mutations require both verified admin access and databa
 
 Public previews operate on an isolated browser/session snapshot. Visitors cannot use preview controls to modify shared crop parameters, scenarios, device identities or bindings. Physical hardware does not exist in this MVP; future live controller adapters must preserve acknowledgment, deadline and observed-state checks.
 
-Critical flow, pressure, valve and inconsistent-telemetry faults pause simulated automatic control. Soil-sensor fallback remains an explicitly degraded model estimate. Alerts state evidence and possible causes rather than claiming a diagnosis.
+Missing/invalid/stale critical weather, rainfall, flow, pressure, pump or valve channels and inconsistent telemetry restrict or pause simulated automatic control. Soil-sensor loss permits an explicitly qualified model fallback with `Moderate` quality. Alerts state evidence and possible causes rather than claiming a diagnosis. The model-clock freshness thresholds are documented in [simulation](SIMULATION.md).
 
 ## Operator checks
 

@@ -1,6 +1,6 @@
 # Local setup and hosted deployment
 
-Current delivery status is recorded in [BUILD_PROGRESS.md](BUILD_PROGRESS.md). The selected hosted Supabase target is the existing **baraka-agro** project (`gunzhtlbpxwpprqwnhfd`), with authenticated CLI access. Vercel access still needs a valid session/token; a successful application deployment and final hosted URL have not yet been recorded. Local validation and cloud deployment remain separate gates.
+Current delivery status is recorded in [BUILD_PROGRESS.md](BUILD_PROGRESS.md). The selected hosted Supabase target is **baraka-agro** (`gunzhtlbpxwpprqwnhfd`). Seven initial migrations, the calculated golden seed, parameter registry and hosted database access checks succeeded on September 23, 2026. Vercel identity and project **agro** under **feruzbeks-projects-10a1b6ab** are verified; the four application environment variables are configured for Production and Preview. The application release and new owner-management gates remain in progress. Local validation, hosted database readiness and application deployment remain separate gates.
 
 ## Local Supabase
 
@@ -21,9 +21,9 @@ The SQL seed provides the demo farm, field and reference parameter versions. `np
 
 Local reset is destructive to local data: `npm run db:reset` reapplies SQL migrations and seed to the disposable local database. Run the calculated seed again after reset. Never point an equivalent reset operation at a hosted production database.
 
-## Administrator provisioning
+## Local owner provisioning
 
-Run `npx tsx scripts/bootstrap-admin.ts` with private environment values `AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD` and `SUPABASE_SERVICE_ROLE_KEY`. It creates the Auth account with the administrative API and assigns its `profiles` role through a privileged database connection. Browser clients cannot invoke this process or assign roles. The local setup script generates the email/password into ignored `.env.local` when absent; retrieve them from that file privately.
+Run `npx tsx scripts/bootstrap-admin.ts` with private environment values `AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD` and `SUPABASE_SERVICE_ROLE_KEY`. It creates/reuses the local Auth account and invokes the server-only `bootstrap_initial_owner` RPC, binding its confirmed UUID as the protected initial owner. Browser clients cannot invoke this process or assign themselves roles. The local setup script generates the email/password into ignored `.env.local` when absent; retrieve them from that file privately.
 
 Bootstrap is repeatable: it reuses an existing matching email and intentionally resets that local account's password to `AGRIFLOW_ADMIN_PASSWORD` from `.env.local`. This keeps the documented local login consistent after interrupted setup. The setup, seed, bootstrap and integration scripts deliberately reject hosted URLs; use the controlled hosted procedure below for remote projects.
 
@@ -35,13 +35,16 @@ After bootstrap, verify `/admin` accepts the account and a non-admin account is 
 npm run typecheck
 npm run lint
 npm test
+npm run db:test
 npm run test:integration
 npm run build
 npx playwright install chromium
 npm run test:e2e
 ```
 
-`test:integration` requires the local database. Browser tests start or reuse the application at `http://127.0.0.1:3000`; a seeded backend is required for connected-product and admin scenarios. Record skipped/unavailable checks separately from passed checks in [BUILD_PROGRESS.md](BUILD_PROGRESS.md).
+`db:test` and `test:integration` require the local database. The first runs the committed pgTAP SQL assertions; the second runs authenticated transaction tests. Browser tests start or reuse the application at `http://127.0.0.1:3000`; a seeded backend is required for connected-product and admin scenarios. Record skipped/unavailable checks separately from passed checks in [BUILD_PROGRESS.md](BUILD_PROGRESS.md).
+
+The Playwright configuration starts a development server when none is running. To reproduce the local **production-server** browser gate, stop that development server, finish `npm run build`, start `npm run start` in a separate terminal, then run `npm run test:e2e` with `CI` unset so Playwright reuses the production server. Tests run sequentially against shared scenario data, create temporary test devices, and clean up those devices. Use the seeded local database and private local admin credentials.
 
 Inspect the golden regression, all twelve failure scenarios, duplicate/concurrent accounting, role escalation denial, isolated public preview, authoritative Realtime in a second browser, responsive screens, keyboard behavior and error states. A successful `next build` cannot establish database correctness or physical device safety.
 
@@ -55,7 +58,7 @@ Choose an existing hosted Supabase project and a Vercel team/project explicitly.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Application build/runtime public key | No; low-privilege key only |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server runtime, initialization and privileged setup | **Yes** |
 | `NEXT_PUBLIC_SITE_URL` | Exact production application origin, without path/trailing slash | No |
-| Supabase project reference | CLI linking/migrations, conventionally `SUPABASE_PROJECT_ID` | No |
+| `SUPABASE_PROJECT_REF` | CLI target and deployment preflight; selected value `gunzhtlbpxwpprqwnhfd` | No |
 | `SUPABASE_ACCESS_TOKEN` or authenticated Supabase CLI session | Supabase management/CLI operations | **Yes** |
 | `SUPABASE_DB_PASSWORD` | Optional for direct database/link/push workflows; not needed by authenticated Management API queries | **Yes**, when used |
 | Vercel team/org and project IDs | Explicit target; `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, or verified local project link | No |
@@ -67,6 +70,16 @@ The app retains the historical environment variable names for compatibility. A S
 
 Supabase's management access is separate from its application API keys. The installed CLI supports `db query --project-ref` through the authenticated Management API, without requiring a database password; direct database workflows can require that password. Vercel's project/org IDs identify the target rather than authenticate the operator. [Supabase environment deployment](https://supabase.com/docs/guides/deployment/managing-environments), [Vercel CLI workflow](https://vercel.com/kb/guide/using-vercel-cli-for-custom-workflows).
 
+The Vercel team/project and intended owner identity are supplied. CLI identity/link and the four runtime/build variables have been configured for both Production and Preview. Complete trusted owner provisioning, verify hosted Auth origins and build the final candidate; environment configuration alone is not a successful deployment. Inspect the progress ledger for executed migrations before repeating them. Keep passwords, recovery/invitation links and service keys in trusted private channels or the platform secret store, never in a commit or report.
+
+The deployment helper reads ignored `.env.hosted.local`, with matching process environment values taking precedence. It does not read local `.env.local`. Check the configuration without printing values:
+
+```powershell
+npm run deploy:check
+```
+
+This validates configuration shape, public HTTPS URLs, a non-elevated public key, the Supabase reference and explicit Vercel project/org identifiers (environment variables or `.vercel/project.json`). It does **not** authenticate a Vercel token, contact Supabase, apply migrations or prove a deployment. Verify actual CLI identity and the selected targets independently.
+
 For the selected existing project, first inventory schema objects, application tables, migration history, grants/policies and Auth settings without changing them. Resolve name collisions and preserve unrelated data before applying any new schema. A minimal connectivity check, which does not mutate data, is:
 
 ```powershell
@@ -75,10 +88,24 @@ npx supabase db query --project-ref gunzhtlbpxwpprqwnhfd 'select current_databas
 
 For reviewed SQL files the same command supports `--file <path>`. Executing SQL through this path does not automatically establish the normal migration history: the release procedure must record the exact migrations after successful application and verify their state. Do not replay initial `CREATE` statements over an existing unrelated schema or treat a read-only inventory as migration completion.
 
-For a compatible target using the ordinary linked migration workflow, apply the hosted database in this order:
+For the selected project, the reviewed release used these target-restricted scripts:
 
 ```powershell
-npx supabase link --project-ref $env:SUPABASE_PROJECT_ID
+npx tsx scripts/hosted-migrate.ts --project-ref gunzhtlbpxwpprqwnhfd
+npx tsx scripts/hosted-apply-registry.ts --project-ref gunzhtlbpxwpprqwnhfd
+npx tsx scripts/hosted-seed.ts
+npx tsx scripts/hosted-verify.ts
+node node_modules/supabase/dist/supabase.js db query --linked --project-ref gunzhtlbpxwpprqwnhfd --file scripts/hosted-audit.sql
+```
+
+These commands have already succeeded for `baraka-agro`; they are the release record, not instructions to replay the initial migration. `hosted-migrate.ts` refuses a target with application tables, applies migrations `202609210001`–`202609210006` plus the static seed atomically, and records their SQL/version/name in `supabase_migrations.schema_migrations`. It verifies preservation of the existing `rls_auto_enable` function and `ensure_rls` event trigger. The separate registry transaction adds `202609210007` while retaining older immutable versions.
+
+`hosted-seed.ts` reads private `.env.hosted.local`, requires the selected reference/URL pair, and calls `initialize_demo_state` with `createSimulation('rain-underperforms')` plus `buildForecast`. An existing field snapshot is preserved. `hosted-verify.ts` checks public golden values, distinct 7 mm forecast / 2 mm observed rain, 12 simulated devices and denial of anonymous private reads/role changes/shared mutations. Its restricted mutation probes are expected to fail. `hosted-audit.sql` checks non-admin denial inside a rolled-back transaction, then reads migration/RLS/role/publication/parameter evidence. These checks do not create an Auth account or prove the Vercel UI works.
+
+For a different explicitly selected compatible target using the ordinary linked migration workflow, apply the hosted database in this order. The target-specific scripts above intentionally cannot silently deploy to it:
+
+```powershell
+npx supabase link --project-ref $env:SUPABASE_PROJECT_REF
 npx supabase db push --dry-run --include-seed
 npx supabase db push --include-seed
 npx supabase migration list
@@ -86,7 +113,7 @@ npx supabase migration list
 
 The installed CLI's `--include-seed` explicitly includes `supabase/seed.sql`; `--dry-run` only lists planned migrations. Inspect the target and migration list before the write. Never run `db reset` against a hosted project. A migration apply does not synchronize hosted Auth settings from the local `config.toml`. [Supabase CLI reference](https://supabase.com/docs/reference/cli/supabase-db-push).
 
-Next initialize the field with a trusted server process calling `initialize_demo_state` using `createSimulation('rain-underperforms')` and `buildForecast(state)` from this repository. The initializer preserves an existing field. Provision the first admin using the privileged procedure below. In the hosted Auth settings, enable email/password login, disable public user signup, set the exact application site URL and approved redirect origins, and retain the same role policies. [Auth redirect configuration](https://supabase.com/docs/guides/auth/redirect-urls).
+For a newly selected target, initialize the field with a trusted server process calling `initialize_demo_state` using `createSimulation('rain-underperforms')` and `buildForecast(state)` from this repository. The initializer preserves an existing field. For the selected `baraka-agro` target this step is already complete. Provision the first admin using the privileged procedure below. In the hosted Auth settings, enable email/password login, disable public user signup, set the exact application site URL and approved redirect origins, and retain the same role policies. These Auth settings and successful hosted login remain separate release checks. [Auth redirect configuration](https://supabase.com/docs/guides/auth/redirect-urls).
 
 Configure Vercel as Next.js with root `.`, install command `npm ci`, build command `npm run build`, and Node 24.x. This application needs a server runtime for Auth, APIs and ingestion; it cannot be a static export. Set the four runtime/build variables from the table in the selected Vercel environment, with the service key marked secret. Add secrets through the Vercel dashboard or secure interactive `vercel env add`, avoiding command arguments that contain their values. [Vercel environment variables](https://vercel.com/docs/cli/env).
 
@@ -94,24 +121,38 @@ Next.js inlines `NEXT_PUBLIC_*` values when building. Build with the hosted URL/
 
 Link the selected project with `vercel link --project <project-id> --scope <team-slug>` after authenticating. Build a production candidate with `vercel deploy --prod --skip-domain`, record its returned deployment URL, and run the verification below before `vercel promote <deployment-url>`. Pin the deployment CLI in the release environment. The first deployment of a new Vercel project may be production even when `--prod` is omitted; do not treat an unqualified `vercel deploy` as a preview guarantee. [Project linking](https://vercel.com/docs/cli/link), [deployment flags](https://vercel.com/docs/cli/deploy), [promotion](https://vercel.com/docs/cli/promote).
 
-For the first **hosted** administrator, use the Supabase administrative Auth API or the project's trusted Auth management console to create a confirmed email/password account. Confirm its Auth user UUID, then run the following as the privileged database operator in that project's SQL editor, replacing the example UUID with the verified account UUID:
+The first **hosted owner** uses the target-restricted trusted bootstrap. After testing the access migration locally, apply the two additional migrations and bind the user-designated identity:
 
-```sql
-begin;
-update public.profiles
-set role = 'admin'
-where id = '00000000-0000-4000-8000-000000000000'::uuid;
--- Verify that exactly the intended profile was updated before committing.
-select id, role from public.profiles
-where id = '00000000-0000-4000-8000-000000000000'::uuid;
-commit;
+```powershell
+npx tsx scripts/hosted-apply-access.ts --project-ref gunzhtlbpxwpprqwnhfd
+npx tsx scripts/hosted-bootstrap-owner.ts --project-ref gunzhtlbpxwpprqwnhfd
 ```
 
-The UUID above is a placeholder, not an account to create. The product browser has no permission to execute this promotion. Do not grant table writes to ordinary authenticated users to simplify bootstrap. For a later role removal, use the same trusted operator path and set `role = 'farmer'`.
+`hosted-apply-access.ts` records `202609230008_owner_role` and `202609230009_access_management` in separate committed transactions: PostgreSQL must commit the new enum value before using it. It creates no Auth identity. The bootstrap selects the explicitly designated email once, then binds the confirmed **UUID** through `bootstrap_initial_owner`. An existing account and password are preserved. Only for a missing identity does it generate a strong password, saving it privately in ignored `.env.hosted.local` before account creation. Bootstrap records `AGRIFLOW_OWNER_ID`/`AGRIFLOW_OWNER_EMAIL` there; newly generated credentials also use `AGRIFLOW_OWNER_PASSWORD`. These values are not application runtime environment variables and are never printed. Consult the progress ledger for execution results; script availability alone does not establish completed hosted provisioning.
+
+The initial owner cannot be replaced, disabled or demoted. Repeating bootstrap for its UUID is safe; a different UUID is rejected. Do not use ad hoc `profiles.role` updates or grant profile-table writes to ordinary authenticated users. After verified sign-in, Team & Access permits authorized invitations and permission changes with database safeguards. Configure `/auth/accept` as an approved hosted invitation/recovery redirect and verify the email provider separately from account creation.
+
+For trusted recovery of the same protected initial-owner UUID:
+
+```powershell
+npx tsx scripts/owner-recovery.ts --project-ref gunzhtlbpxwpprqwnhfd --user-id <protected-owner-uuid>
+# Local equivalent:
+npx tsx scripts/owner-recovery.ts --local --user-id <protected-owner-uuid>
+```
+
+Recovery requires privileged server credentials, audits the request and saves a private single-use Auth recovery link only to ignored `.local/owner-recovery.txt`. Open it privately and remove the file after use; do not copy it into logs, issue reports or version control. The flow preserves the Auth UUID and owner role. It is not a role reassignment or a bypass of owner protections.
 
 ## Hosted acceptance evidence
 
 Before domain promotion, retain the candidate URL, selected project IDs, applied migration versions, commit/build identifier and dated check results. A protected candidate must be tested with the operator's legitimate automation bypass; a Vercel sign-in page is not an AgriFlow success response. Keep any bypass token out of logs. [Vercel automation access](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation).
+
+Run the repository's read-only smoke check against the actual deployed candidate:
+
+```powershell
+npm run deploy:verify -- --url https://your-candidate.vercel.app
+```
+
+Without `--url`, the script uses hosted `NEXT_PUBLIC_SITE_URL`. It checks the seven page responses, unauthenticated admin login, persisted `/api/product` shape, HTTP 401 on anonymous admin overview, and same-origin JavaScript bundles for the configured service key and local Supabase addresses. It does not mutate a field or prove authenticated control, Realtime, visual quality, or a complete absence of secrets. The current helper does not attach deployment-protection bypass headers; for a protected candidate, use the operator's legitimate authorized test path and retain equivalent checks rather than interpreting a protection page as a pass.
 
 | Check | Passing evidence |
 |---|---|

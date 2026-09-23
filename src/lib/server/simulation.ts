@@ -13,7 +13,7 @@ export function stateBundle(state: SimulationState, action: string) {
     calculation: {
       engineVersion: state.calculation.engineVersion,
       parameterVersion: state.calculation.parameterVersion,
-      inputs: { ...state.calculation.input, evaluationContext: { clock: state.clock, scenarioId: state.scenarioId, parameters: state.parameters, soil: state.soil, rain: state.rain, accounting: state.accounting, control: state.control, zones: state.zones, deviceInputs: state.devices } },
+      inputs: { ...state.calculation.input, evaluationContext: { clock: state.clock, scenarioId: state.scenarioId, parameters: state.parameters, soil: state.soil, soilModel: state.soilModel, simulationConfiguration: state.simulationConfiguration, rain: state.rain, accounting: state.accounting, control: state.control, zones: state.zones, deviceInputs: state.devices } },
       outputs: { ...state.calculation, currentRecommendation: state.recommendation, currentRootZoneDepletionMm: state.soil.rootZoneDepletionMm },
     },
     alerts: state.alerts.map(alert => ({ ...alert, id: `${state.id}:${alert.id}` })),

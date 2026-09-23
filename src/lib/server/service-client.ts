@@ -1,7 +1,7 @@
 import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
-/** Do not import into UI modules. Reserved for verified device ingestion. */
+/** Never import into UI modules. Reserved for verified ingestion and database-authorized Auth invitations. */
 export function createServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

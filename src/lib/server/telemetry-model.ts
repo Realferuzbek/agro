@@ -1,4 +1,4 @@
-import { recalculateRecommendation, rootWaterBalance, surfaceWaterBalance, SIMULATION_POLICY } from '@/domain';
+import { applyObservedRainfall, recalculateRecommendation } from '@/domain';
 import type { DeviceReading, SimulationState } from '@/domain/types';
 import { TELEMETRY_DEFAULTS,type TelemetryInput } from './telemetry-contract';
 
@@ -8,7 +8,7 @@ const modelDay=(timestamp:string)=>new Date(Date.parse(timestamp)+5*3600_000).to
 /** Commissioned observations only. ET budgets and delivered volume are never inferred from a sensor sample. */
 export function applyMeasuredObservation(state:SimulationState,input:TelemetryInput,binding:MeasuredBinding,previous:Record<string,{value?:unknown}>|null):SimulationState|null {
   if(modelDay(input.observedAt)!==modelDay(state.clock))return null;
-  const next=structuredClone(state);
+  let next=structuredClone(state);
   const rain=input.measurements.find(item=>item.metric==='rainfallIncrementMm'||item.metric==='rainfallCumulativeMm');
   let rainfallMm=0;
   if(rain&&typeof rain.value==='number') {
@@ -20,14 +20,7 @@ export function applyMeasuredObservation(state:SimulationState,input:TelemetryIn
     }
   }
   if(rainfallMm>0) {
-    const water=rootWaterBalance(next.soil.rootZoneDepletionMm,rainfallMm,0,0,0,next.soil.tawMm);
-    const surface=surfaceWaterBalance(next.soil.surfaceDepletionMm,rainfallMm,0,0,0,1,1,next.calculation.tewMm);
-    next.soil.rootZoneDepletionMm=water.depletionMm;next.soil.deepPercolationMm+=water.deepPercolationMm;
-    next.soil.surfaceDepletionMm=surface.depletionMm;
-    if(Date.parse(input.observedAt)>=Date.parse(next.rain.windowStart)&&Date.parse(input.observedAt)<=Date.parse(next.rain.windowEnd))next.rainWindowObservedMm=(next.rainWindowObservedMm??next.rain.observedMm)+rainfallMm;
-    next.rain.observedMm+=rainfallMm;next.accounting.observedRainMm+=rainfallMm;
-    if(next.accounting.observedRainMm>=SIMULATION_POLICY.surfaceWettingRainMm)next.surfaceWetting='rain';
-    next.rain.lastRainAt=input.observedAt;next.rain.eventOpen=true;
+    next=applyObservedRainfall(next,rainfallMm,input.observedAt);
   }
   const measurement=input.measurements[0];
   const reading:DeviceReading={id:binding.id,name:binding.name,kind:binding.kind,status:'online',...(binding.zone_id?{zoneId:binding.zone_id}:{}),lastSeen:input.observedAt,datum:{value:measurement.value,unit:measurement.unit,provenance:'MEASURED',sourceId:binding.id,measuredAt:input.observedAt,quality:'valid'}};
