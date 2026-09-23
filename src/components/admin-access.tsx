@@ -39,6 +39,6 @@ export function AdminAccess() {
       }):<p>{copy.noUsers}</p>}</div>}
     </Card>
     {access&&<Card title={copy.inviteTitle} className="section-gap" icon={UserPlus}><p className="card-description">{copy.inviteHint}</p><form onSubmit={event=>void submit(event)}><div className="grid two"><label className="form-field">{copy.email}<input required type="email" name="email" autoComplete="email" maxLength={254}/></label><label className="form-field">{copy.role}<select name="role" aria-label={copy.role} defaultValue="admin"><option value="admin">{copy.admin}</option>{access.actor.role==='owner'&&<option value="owner">{copy.owner}</option>}</select></label></div><PermissionFields actor={access.actor}/><button className="button primary" disabled={busy}>{copy.invite}</button></form></Card>}
-    {access&&access.invitations.length>0&&<Card title={copy.pending} className="section-gap"><div className="table-wrap"><table><thead><tr><th>{copy.email}</th><th>{copy.status}</th></tr></thead><tbody>{access.invitations.map(invitation=><tr key={invitation.id}><td>{invitation.email}</td><td>{invitation.status}</td></tr>)}</tbody></table></div></Card>}
+    {access&&access.invitations.length>0&&<Card title={copy.pending} className="section-gap"><div className="table-wrap" tabIndex={0}><table><thead><tr><th>{copy.email}</th><th>{copy.status}</th></tr></thead><tbody>{access.invitations.map(invitation=><tr key={invitation.id}><td>{invitation.email}</td><td>{invitation.status}</td></tr>)}</tbody></table></div></Card>}
   </div>;
 }
