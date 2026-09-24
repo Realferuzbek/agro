@@ -10,7 +10,7 @@ if(project!==approvedProject)throw new Error(`Pass --project-ref ${approvedProje
 const sqlString=(value:string)=>`'${value.replaceAll("'","''")}'`;
 const directory=resolve('supabase/migrations');
 const migrations=readdirSync(directory).filter(name=>/^20260921000[1-6]_.+\.sql$/.test(name)).sort();
-if(migrations.length!==6)throw new Error('Expected the six reviewed initial AgriFlow migrations.');
+if(migrations.length!==6)throw new Error('Expected the six reviewed initial Baraka Agro migrations.');
 const statements=[
   'begin;',
   "set local lock_timeout = '10s';",

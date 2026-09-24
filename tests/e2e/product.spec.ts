@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Page } from '@playwright/test';
 
 function localCredentials() { return Object.fromEntries(readFileSync('.env.local','utf8').split(/\r?\n/).filter(l=>/^[A-Z_]+=/.test(l)).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1)])); }
-async function signIn(page:Page) { const env=localCredentials();await page.goto('/admin');await page.getByLabel('Email',{exact:true}).fill(env.AGRIFLOW_ADMIN_EMAIL);await page.getByLabel('Password',{exact:true}).fill(env.AGRIFLOW_ADMIN_PASSWORD);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByRole('heading',{name:'A clearer view of the system.'})).toBeVisible(); }
+async function signIn(page:Page) { const env=localCredentials();await page.goto('/admin');await page.getByLabel('Email',{exact:true}).fill(env.BARAKA_ADMIN_EMAIL);await page.getByLabel('Password',{exact:true}).fill(env.BARAKA_ADMIN_PASSWORD);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByRole('heading',{name:'A clearer view of the system.'})).toBeVisible(); }
 
 test('Today shows the persisted golden plan and an accessible explanation', async ({ page }) => {
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
@@ -62,7 +62,7 @@ test('authoritative simulation propagates to a separate public browser through r
 test('all farmer routes navigate and fit the viewport', async ({ page, isMobile }) => {
   await page.goto('/');const nav=page.locator(isMobile?'.mobile-nav':'.navigation');
   for(const [name,path,title] of [['Field','/field','A living picture of your field.'],['Irrigation','/irrigation','Your irrigation plan.'],['Forecast','/forecast','The week ahead.'],['History','/history','Your field’s history.'],['Devices','/devices','Small devices. A fuller picture.'],['Today','/','Your field, at a glance.']]){
-    await nav.getByRole('link',{name,exact:true}).click();await expect(page).toHaveURL(path);
+    await nav.getByRole('link',{name,exact:true}).click();await expect(page).toHaveURL(`/en${path==='/'?'':path}`);
     await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true);
   }
@@ -72,14 +72,14 @@ test('all farmer routes navigate and fit the viewport', async ({ page, isMobile 
 test('public preview delivers water locally and survives a reload without mutating shared state', async ({ page, context }) => {
   const before=await (await page.request.get('/api/product')).json();
   const observer=await context.newPage();await observer.goto('/');await page.goto('/');
-  await page.getByRole('button',{name:'Preview irrigation',exact:true}).click();await expect(page).toHaveURL('/irrigation');
+  await page.getByRole('button',{name:'Preview irrigation',exact:true}).click();await expect(page).toHaveURL('/en/irrigation');
   await expect(page.locator('.preview-banner')).toBeVisible();
-  await expect.poll(async()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem('agriflow-preview')??'{}').control?.deliveredVolumeLiters??0)).toBeGreaterThan(0);
+  await expect.poll(async()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem('baraka-agro-preview')??'{}').control?.deliveredVolumeLiters??0)).toBeGreaterThan(0);
   await page.getByRole('button',{name:'Pause',exact:true}).click();
-  const delivered=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('agriflow-preview')!).control.deliveredVolumeLiters);
+  const delivered=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('baraka-agro-preview')!).control.deliveredVolumeLiters);
   await page.reload();await expect(page.locator('.preview-banner')).toBeVisible();
   await expect(page.getByRole('button',{name:'Resume',exact:true})).toBeVisible();
-  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('agriflow-preview')!).control.deliveredVolumeLiters)).toBe(delivered);
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('baraka-agro-preview')!).control.deliveredVolumeLiters)).toBe(delivered);
   const after=await (await page.request.get('/api/product')).json();expect(after.revision).toBe(before.revision);expect(after.state.control.deliveredVolumeLiters).toBe(before.state.control.deliveredVolumeLiters);
   await expect(observer.locator('.preview-banner')).toHaveCount(0);
   await page.getByRole('button',{name:'Exit preview'}).click();await expect(page.locator('.preview-banner')).toHaveCount(0);await observer.close();
@@ -108,7 +108,7 @@ test('farmer routes and explanation meet automated accessibility checks', async 
 
 test('admin login, shared scenario changes, inspector, and logout work', async ({ page }) => {
   const values=Object.fromEntries(readFileSync('.env.local','utf8').split(/\r?\n/).filter(l=>/^[A-Z_]+=/.test(l)).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1)]));
-  await page.goto('/admin');await page.getByLabel('Email',{exact:true}).fill(values.AGRIFLOW_ADMIN_EMAIL);await page.getByLabel('Password',{exact:true}).fill(values.AGRIFLOW_ADMIN_PASSWORD);await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  await page.goto('/admin');await page.getByLabel('Email',{exact:true}).fill(values.BARAKA_ADMIN_EMAIL);await page.getByLabel('Password',{exact:true}).fill(values.BARAKA_ADMIN_PASSWORD);await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await expect(page.getByRole('heading',{name:'A clearer view of the system.'})).toBeVisible();
   await page.getByLabel('Simulation scenario').selectOption('sensor-offline');await page.getByRole('button',{name:'Load / reset'}).click();
   await expect(page.getByRole('status')).toContainText('Scenario reset');
@@ -120,7 +120,7 @@ test('admin login, shared scenario changes, inspector, and logout work', async (
 });
 
 test('owner grants limited administrator access and revokes it through the protected workspace',async({page,browser})=>{
-  const env=localCredentials(),password=crypto.randomUUID()+crypto.randomUUID(),email=`access-${crypto.randomUUID()}@agriflow.test`;
+  const env=localCredentials(),password=crypto.randomUUID()+crypto.randomUUID(),email=`access-${crypto.randomUUID()}@barakaagro.test`;
   const service=createClient(env.NEXT_PUBLIC_SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
   const created=await service.auth.admin.createUser({email,password,email_confirm:true});expect(created.error).toBeNull();const id=created.data.user!.id;
   const colleague=await browser.newContext();
@@ -146,4 +146,34 @@ test('administration tabs support keyboard navigation and accessible content',as
     await tabs.getByRole('tab',{name,exact:true}).click();await expect(page.getByRole('tabpanel')).toBeVisible();const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();violations.push(...result.violations.map(v=>({name,id:v.id,nodes:v.nodes.map(n=>n.target)})));
   }
   expect(violations).toEqual([]);
+});
+
+test('configured zone soil states are labeled and explained on farmer screens',async({page})=>{
+  await signIn(page);
+  const before=await(await page.request.get('/api/product')).json();
+  const configuration={version:'e2e-zone-ui-1',source:'Local browser verification',zones:before.state.zones.map((zone:{id:string;areaM2:number},index:number)=>({
+    zoneId:zone.id,
+    parameters:{...before.state.parameters,version:'e2e-zone-ui-1',fieldAreaM2:zone.areaM2,applicationEfficiency:index===0?.75:.8},
+    rootZoneDepletionMm:[30,20,10,5][index],surfaceDepletionMm:before.state.soil.surfaceDepletionMm,
+  }))};
+  try{
+    const configured=await page.request.post('/api/admin/soil-model',{headers:{origin:'http://127.0.0.1:3000'},data:{configuration,expectedVersion:before.revision,idempotencyKey:crypto.randomUUID()}});
+    expect(configured.status()).toBe(200);
+    await page.goto('/field');
+    await expect(page.getByText('Configured zone soil profiles',{exact:true})).toBeVisible();
+    await expect(page.getByText('Area-weighted root-zone depletion',{exact:true})).toBeVisible();
+    const zoneA=page.getByRole('row').filter({has:page.getByRole('rowheader',{name:'Zone A',exact:true})});
+    await expect(zoneA).toContainText('30.00 mm');
+    await expect(zoneA).toContainText('75%');
+    await page.goto('/irrigation');
+    await expect(page.getByText('Configured separately for each zone',{exact:true})).toBeVisible();
+    await expect(page.locator('.zone-card').first()).toContainText('75%');
+    await page.getByRole('button',{name:'Why this recommendation?'}).click();
+    await expect(page.getByRole('dialog')).toContainText('Zone A application efficiency');
+    await expect(page.getByRole('dialog')).toContainText('area-weighted summary');
+  }finally{
+    const current=await(await page.request.get('/api/product')).json();
+    const reset=await page.request.post('/api/admin/simulation',{headers:{origin:'http://127.0.0.1:3000'},data:{action:'reset',scenarioId:'rain-underperforms',expectedVersion:current.revision,idempotencyKey:crypto.randomUUID()}});
+    expect(reset.status()).toBe(200);
+  }
 });

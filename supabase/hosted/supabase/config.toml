@@ -1,9 +1,9 @@
 # Only declared Auth settings are synchronized. No database reset or SMTP override.
-project_id = "agriflow-hosted-auth"
+project_id = "baraka-agro-hosted-auth"
 
 [auth]
-site_url = "https://agro-feruzbeks-projects-10a1b6ab.vercel.app"
-additional_redirect_urls = ["https://agro-feruzbeks-projects-10a1b6ab.vercel.app/auth/accept"]
+site_url = "https://barakaagro.app"
+additional_redirect_urls = ["https://barakaagro.app/auth/accept"]
 enable_signup = false
 minimum_password_length = 12
 

@@ -11,7 +11,7 @@ insert into public.parameter_sets(kind,version,name,parameters,source) values
 ('soil','loam-1.0.0','Loam · reference demo profile','{"thetaFC":0.30,"thetaWP":0.14,"evaporationDepthM":0.10,"readilyEvaporableWaterMm":9,"initialDepletionMm":22,"initialEvaporationDepletionMm":17}',
  '{"title":"FAO-56 soil-water methodology","organization":"FAO","year":1998,"notes":"Demo soil profile, not a measured soil analysis."}'),
 ('policy','policy-1.0.0','Conservative demonstration policy','{"earlyWarningRawFraction":0.9,"actionRawFraction":1.0,"targetRawFraction":0.8,"rainEventQuietMinutes":30,"flowAnomalyFraction":0.2,"flowGraceSeconds":60}',
- '{"title":"AgriFlow demonstration management policy","organization":"AgriFlow","notes":"Configurable management assumptions; not universal FAO constants."}'),
+ '{"title":"Baraka Agro demonstration management policy","organization":"Baraka Agro","notes":"Configurable management assumptions; not universal FAO constants."}'),
 ('irrigation','drip-1.0.0','Four sequential drip zones','{"applicationEfficiency":0.9,"rowSpacingM":0.8,"emitterSpacingM":0.3,"emitterFlowLph":1,"zoneFlowsM3h":[10.5,10.3,10.4,10.2],"scheduling":"sequential"}',
- '{"title":"AgriFlow conceptual drip system","organization":"AgriFlow","notes":"Simulated pressure-compensating inline drip profile; no installed hardware."}')
+ '{"title":"Baraka Agro conceptual drip system","organization":"Baraka Agro","notes":"Simulated pressure-compensating inline drip profile; no installed hardware."}')
 on conflict(kind,version) do nothing;

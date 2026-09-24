@@ -3,8 +3,8 @@ import { assertLocalBackend, loadLocalEnvironment } from './env';
 
 async function main() {
   loadLocalEnvironment();const {url,key}=assertLocalBackend();
-  const email=process.env.AGRIFLOW_ADMIN_EMAIL;const password=process.env.AGRIFLOW_ADMIN_PASSWORD;
-  if(!email||!password||password.length<12)throw new Error('Set AGRIFLOW_ADMIN_EMAIL and AGRIFLOW_ADMIN_PASSWORD (at least 12 characters) in .env.local.');
+  const email=process.env.BARAKA_ADMIN_EMAIL;const password=process.env.BARAKA_ADMIN_PASSWORD;
+  if(!email||!password||password.length<12)throw new Error('Set BARAKA_ADMIN_EMAIL and BARAKA_ADMIN_PASSWORD (at least 12 characters) in .env.local.');
   const client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:list,error:listError}=await client.auth.admin.listUsers({page:1,perPage:1000});if(listError)throw listError;
   let user=list.users.find(candidate=>candidate.email===email);

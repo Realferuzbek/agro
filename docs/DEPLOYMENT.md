@@ -23,9 +23,9 @@ Local reset is destructive to local data: `npm run db:reset` reapplies SQL migra
 
 ## Local owner provisioning
 
-Run `npx tsx scripts/bootstrap-admin.ts` with private environment values `AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD` and `SUPABASE_SERVICE_ROLE_KEY`. It creates/reuses the local Auth account and invokes the server-only `bootstrap_initial_owner` RPC, binding its confirmed UUID as the protected initial owner. Browser clients cannot invoke this process or assign themselves roles. The local setup script generates the email/password into ignored `.env.local` when absent; retrieve them from that file privately.
+Run `npx tsx scripts/bootstrap-admin.ts` with private environment values `BARAKA_ADMIN_EMAIL`, `BARAKA_ADMIN_PASSWORD` and `SUPABASE_SERVICE_ROLE_KEY`. It creates/reuses the local Auth account and invokes the server-only `bootstrap_initial_owner` RPC, binding its confirmed UUID as the protected initial owner. Browser clients cannot invoke this process or assign themselves roles. The local setup script generates the email/password into ignored `.env.local` when absent; retrieve them from that file privately.
 
-Bootstrap is repeatable: it reuses an existing matching email and intentionally resets that local account's password to `AGRIFLOW_ADMIN_PASSWORD` from `.env.local`. This keeps the documented local login consistent after interrupted setup. The setup, seed, bootstrap and integration scripts deliberately reject hosted URLs; use the controlled hosted procedure below for remote projects.
+Bootstrap is repeatable: it reuses an existing matching email and intentionally resets that local account's password to `BARAKA_ADMIN_PASSWORD` from `.env.local`. This keeps the documented local login consistent after interrupted setup. The setup, seed, bootstrap and integration scripts deliberately reject hosted URLs; use the controlled hosted procedure below for remote projects.
 
 After bootstrap, verify `/admin` accepts the account and a non-admin account is forbidden from privileged actions. The local browser test reads private admin credentials from ignored `.env.local`; retain them while validating locally and never copy them into hosted runtime configuration. If provisioning is interrupted, inspect the Auth account and role with privileged tooling before retrying. Do not create another account solely to bypass a missing role.
 
@@ -50,7 +50,7 @@ Inspect the golden regression, all twelve failure scenarios, duplicate/concurren
 
 ## Hosted Supabase and Vercel
 
-Choose an existing hosted Supabase project and a Vercel team/project explicitly. Do not infer the destination from the local folder name. A custom domain is optional; the selected project's HTTPS `vercel.app` domain is sufficient. Keep local credentials in `.env.local`; supply cloud credentials separately through a trusted shell, encrypted release environment or ignored `.env.hosted.local`. Do not paste secret values into documentation or reports.
+Choose the existing hosted Supabase project and linked Vercel project explicitly. The production origin for this release is `https://barakaagro.app`; the `www` host redirects to it. Use a candidate `vercel.app` origin only for pre-promotion checks. Keep local credentials in `.env.local`; supply cloud credentials separately through a trusted shell, encrypted release environment or ignored `.env.hosted.local`. Do not paste secret values into documentation or reports. See [the production checklist](PRODUCTION_CHECKLIST.md) for dashboard, DNS, Auth, and Search Console work.
 
 | Input | Where used | Secret? |
 |---|---|---|
@@ -128,9 +128,11 @@ npx tsx scripts/hosted-apply-access.ts --project-ref gunzhtlbpxwpprqwnhfd
 npx tsx scripts/hosted-bootstrap-owner.ts --project-ref gunzhtlbpxwpprqwnhfd
 ```
 
-`hosted-apply-access.ts` records `202609230008_owner_role` and `202609230009_access_management` in separate committed transactions: PostgreSQL must commit the new enum value before using it. It creates no Auth identity. The bootstrap requires the designated email and a strong password already stored in ignored `.env.hosted.local`, creates or confirms that Auth identity, synchronizes the stored password without printing it, then binds the confirmed **UUID** through `bootstrap_initial_owner`. It records `AGRIFLOW_OWNER_ID`, `AGRIFLOW_OWNER_EMAIL` and `AGRIFLOW_OWNER_PASSWORD` privately. These are trusted bootstrap and verification inputs, not application runtime variables.
+`hosted-apply-access.ts` records `202609230008_owner_role` and `202609230009_access_management` in separate committed transactions: PostgreSQL must commit the new enum value before using it. It creates no Auth identity. The bootstrap requires the designated email and a strong password already stored in ignored `.env.hosted.local`, creates or confirms that Auth identity, synchronizes the stored password without printing it, then binds the confirmed **UUID** through `bootstrap_initial_owner`. It records `BARAKA_OWNER_ID`, `BARAKA_OWNER_EMAIL` and `BARAKA_OWNER_PASSWORD` privately. These are trusted bootstrap and verification inputs, not application runtime variables.
 
 The selected hosted project has already completed these steps. Repeatable read-only/temporary verification is available through `npx tsx scripts/verify-hosted-owner.ts` and `npx tsx scripts/verify-hosted-access.ts`; the latter creates and removes a disposable user while proving that a regular admin cannot demote, disable or directly rewrite the protected owner.
+
+`npx tsx scripts/verify-hosted-realtime.ts` opens an anonymous subscription to the public demo alert stream, inserts a temporary alert using trusted server credentials, waits for the committed event, and removes the alert. For predeployment browser acceptance, build with the private hosted environment, run `npm run start` with the same environment, and run `npx tsx scripts/verify-hosted-browser.ts`. That browser check covers owner login, public authorization, all farmer routes, desktop/tablet/mobile accessibility and fit, and static public asset secret isolation. It uses a local production server connected to hosted Supabase; repeat origin-specific checks on the Vercel candidate after deployment.
 
 The initial owner cannot be replaced, disabled or demoted. Repeating bootstrap for its UUID is safe; a different UUID is rejected. Do not use ad hoc `profiles.role` updates or grant profile-table writes to ordinary authenticated users. After verified sign-in, Team & Access permits authorized invitations and permission changes with database safeguards. Configure `/auth/accept` as an approved hosted invitation/recovery redirect and verify the email provider separately from account creation.
 
@@ -146,7 +148,7 @@ Recovery requires privileged server credentials, audits the request and saves a 
 
 ## Hosted acceptance evidence
 
-Before domain promotion, retain the candidate URL, selected project IDs, applied migration versions, commit/build identifier and dated check results. A protected candidate must be tested with the operator's legitimate automation bypass; a Vercel sign-in page is not an AgriFlow success response. Keep any bypass token out of logs. [Vercel automation access](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation).
+Before domain promotion, retain the candidate URL, selected project IDs, applied migration versions, commit/build identifier and dated check results. A protected candidate must be tested with the operator's legitimate automation bypass; a Vercel sign-in page is not a Baraka Agro success response. Keep any bypass token out of logs. [Vercel automation access](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation).
 
 Run the repository's read-only smoke check against the actual deployed candidate:
 
@@ -154,11 +156,11 @@ Run the repository's read-only smoke check against the actual deployed candidate
 npm run deploy:verify -- --url https://your-candidate.vercel.app
 ```
 
-Without `--url`, the script uses hosted `NEXT_PUBLIC_SITE_URL`. It checks the seven page responses, unauthenticated admin login, persisted `/api/product` shape, HTTP 401 on anonymous admin overview, and same-origin JavaScript bundles for the configured service key and local Supabase addresses. It does not mutate a field or prove authenticated control, Realtime, visual quality, or a complete absence of secrets. The current helper does not attach deployment-protection bypass headers; for a protected candidate, use the operator's legitimate authorized test path and retain equivalent checks rather than interpreting a protection page as a pass.
+Without `--url`, the script uses hosted `NEXT_PUBLIC_SITE_URL`. It checks all 18 localized public routes, locale/canonical/hreflang metadata, private admin noindex, sitemap, robots, manifest, persisted `/api/product` shape, HTTP 401 on anonymous admin overview, and same-origin JavaScript bundles for the configured service key and local Supabase addresses. It does not mutate a field or prove authenticated control, Realtime, visual quality, or a complete absence of secrets. The helper does not attach deployment-protection bypass headers; for a protected candidate, use the operator's legitimate authorized test path and retain equivalent checks rather than interpreting a protection page as a pass.
 
 | Check | Passing evidence |
 |---|---|
-| Public pages | `/`, `/field`, `/irrigation`, `/forecast`, `/history`, `/devices` return/render the product over HTTPS with one persistent simulation disclosure |
+| Public pages | `/en`, `/uz`, `/ru` and each language's `/field`, `/irrigation`, `/forecast`, `/history`, `/devices` render the product over HTTPS with one persistent simulation disclosure; unprefixed paths redirect to the selected language |
 | Persisted product | `/api/product` returns schema version 1, finite water values, a database revision and the intended seeded/scenario state |
 | Public boundaries | Anonymous `/api/admin/overview` returns 401; `/admin` renders login, not privileged data; raw telemetry/audit/credential reads remain denied |
 | Public preview | Delivery advances locally; second browser and authoritative database revision remain unchanged |

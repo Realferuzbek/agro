@@ -11,7 +11,7 @@ vi.mock('server-only',()=>({}));
 import { POST as ingest } from '@/app/api/telemetry/ingest/route';
 
 loadLocalEnvironment();
-const enabled=process.env.AGRIFLOW_INTEGRATION_TESTS==='1';
+const enabled=process.env.BARAKA_INTEGRATION_TESTS==='1';
 const digest=(value:unknown)=>createHash('sha256').update(typeof value==='string'?value:JSON.stringify(value)).digest('hex');
 const fields:string[]=[];const farms:string[]=[];const users:string[]=[];const devices:string[]=[];
 let service:SupabaseClient;let anonymous:SupabaseClient;let admin:SupabaseClient;let farmer:SupabaseClient;let adminId:string;let farmerId:string;
@@ -51,9 +51,9 @@ describe.skipIf(!enabled)('real PostgreSQL, Supabase Auth, RLS and ingestion',()
     const options={auth:{persistSession:false,autoRefreshToken:false}};
     service=createClient(url,process.env.SUPABASE_SERVICE_ROLE_KEY!,options);anonymous=createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,options);
     const owner=createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,options);
-    expect((await owner.auth.signInWithPassword({email:process.env.AGRIFLOW_ADMIN_EMAIL!,password:process.env.AGRIFLOW_ADMIN_PASSWORD!})).error).toBeNull();
+    expect((await owner.auth.signInWithPassword({email:process.env.BARAKA_ADMIN_EMAIL!,password:process.env.BARAKA_ADMIN_PASSWORD!})).error).toBeNull();
     async function identity(role:'admin'|'farmer'){
-      const email=`test-${randomUUID()}@agriflow.test`,password=randomBytes(24).toString('base64url');
+      const email=`test-${randomUUID()}@barakaagro.test`,password=randomBytes(24).toString('base64url');
       const created=await service.auth.admin.createUser({email,password,email_confirm:true});expect(created.error).toBeNull();
       const userId=created.data.user!.id;users.push(userId);
       if(role==='admin'){const promoted=await owner.rpc('manage_admin_access',{p_user_id:userId,p_changes:{role,permissions:['simulation.manage','devices.manage','parameters.manage','audit.read']}});expect(promoted.error).toBeNull();}

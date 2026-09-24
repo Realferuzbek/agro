@@ -1,8 +1,10 @@
-# AgriFlow
+# Baraka Agro
+
+Production site: `https://barakaagro.app`. The public demo has English (`/en`), Uzbek (`/uz`), and Russian (`/ru`) routes. See [branding](docs/BRANDING.md) and the [production checklist](docs/PRODUCTION_CHECKLIST.md) for assets, domain setup, Supabase Auth URLs, and search indexing.
 
 A deterministic irrigation product for a one-hectare potato field in Tashkent Region, Uzbekistan. The root page is the farmer dashboard; the same application contains a protected engineering workspace.
 
-**Demo — simulated field data.** Crop-water calculations, contracts, PostgreSQL persistence, Auth, RLS and application logic are real software. Weather, soil sensors, pump, valves and delivery are simulated. AgriFlow uses FAO-56-based methodology and is not certified or endorsed by FAO. It makes no measured yield or water-saving claims.
+**Demo — simulated field data.** Crop-water calculations, contracts, PostgreSQL persistence, Auth, RLS and application logic are real software. Weather, soil sensors, pump, valves and delivery are simulated. Baraka Agro uses FAO-56-based methodology and is not certified or endorsed by FAO. It makes no measured yield or water-saving claims.
 
 ## Run locally
 
@@ -26,8 +28,8 @@ npm run dev
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public key for RLS-governed reads and authentication |
 | `NEXT_PUBLIC_SITE_URL` | Exact application origin used by server mutation origin checks; local default `http://127.0.0.1:3000` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only privileged setup/ingestion key |
-| `AGRIFLOW_ADMIN_EMAIL` | Bootstrap administrator email; server-side setup only |
-| `AGRIFLOW_ADMIN_PASSWORD` | Strong unique local bootstrap/admin-test password; never deploy as an app runtime variable |
+| `BARAKA_ADMIN_EMAIL` | Bootstrap administrator email; server-side setup only |
+| `BARAKA_ADMIN_PASSWORD` | Strong unique local bootstrap/admin-test password; never deploy as an app runtime variable |
 
 Open [the product](http://127.0.0.1:3000) and [Supabase Studio](http://127.0.0.1:54323). The administrator login is at `/admin`; normal navigation intentionally contains only farmer pages. Missing backend configuration produces an unavailable state, not a successful database simulation.
 

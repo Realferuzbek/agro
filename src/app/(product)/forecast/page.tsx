@@ -1,3 +1,4 @@
 import { ForecastView } from '@/components/field-views';
-export const metadata = { title: 'Forecast' };
+import { pageMetadata } from '@/config/seo';
+export const generateMetadata = () => pageMetadata('forecast');
 export default function Page() { return <ForecastView />; }

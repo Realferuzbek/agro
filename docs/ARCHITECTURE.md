@@ -1,6 +1,6 @@
 # Architecture
 
-AgriFlow is one Next.js application. The root route is the irrigation product; the engineering workspace is protected at `/admin`. Hardware currently runs behind simulated adapters. The scientific model and application contracts are intended to remain when independently validated live adapters are introduced.
+Baraka Agro is one Next.js application. The root route is the irrigation product; the engineering workspace is protected at `/admin`. Hardware currently runs behind simulated adapters. The scientific model and application contracts are intended to remain when independently validated live adapters are introduced.
 
 ## Boundaries
 

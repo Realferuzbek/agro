@@ -1,14 +1,14 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { RefreshCw, ShieldCheck, UserPlus } from 'lucide-react';
-import { accessCopy as copy } from '@/config/access-copy';
+import { useAccessCopy } from '@/config/locale-copy';
 import { Badge, Card } from './ui';
 
 type Member = {id:string;email:string;role:'farmer'|'admin'|'owner';canManageAdmins:boolean;disabled:boolean;protectedOwner:boolean;permissions?:string[]};
 type Access = {actor:Pick<Member,'id'|'email'|'role'|'canManageAdmins'|'permissions'>;users:Member[];invitations:Array<{id:string;email:string;status:string}>};
-const permissionNames = Object.entries(copy.operationalPermissions);
-
 function PermissionFields({member,actor}:{member?:Member;actor:Access['actor']}) {
+  const copy = useAccessCopy();
+  const permissionNames = Object.entries(copy.operationalPermissions);
   return <fieldset className="permission-fields"><legend>{copy.permissions}</legend>
     {permissionNames.map(([permission,label])=><label className="check-field" key={permission}><input type="checkbox" name="permissions" value={permission} defaultChecked={member?.permissions?.includes(permission)??false} disabled={actor.role!=='owner'&&!actor.permissions?.includes(permission)}/>{label}</label>)}
     <label className="check-field"><input name="canManageAdmins" type="checkbox" defaultChecked={member?.canManageAdmins??false}/>{copy.manageAdmins}</label>
@@ -17,8 +17,9 @@ function PermissionFields({member,actor}:{member?:Member;actor:Access['actor']})
 }
 
 export function AdminAccess() {
+  const copy = useAccessCopy();
   const [access,setAccess]=useState<Access|null>(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[editing,setEditing]=useState<string|null>(null);
-  const load=useCallback(async()=>{try{const response=await fetch('/api/admin/access',{cache:'no-store'});const body=await response.json();if(!response.ok)throw new Error(response.status===403?copy.forbidden:body.error??copy.unavailable);setAccess(body);setError('');}catch(caught){setError(caught instanceof Error?caught.message:copy.unavailable);}},[]);
+  const load=useCallback(async()=>{try{const response=await fetch('/api/admin/access',{cache:'no-store'});const body=await response.json();if(!response.ok)throw new Error(response.status===403?copy.forbidden:body.error??copy.unavailable);setAccess(body);setError('');}catch(caught){setError(caught instanceof Error?caught.message:copy.unavailable);}},[copy.forbidden,copy.unavailable]);
   useEffect(()=>{const task=setTimeout(()=>void load(),0);return()=>clearTimeout(task);},[load]);
   async function submit(event:FormEvent<HTMLFormElement>,member?:Member){
     event.preventDefault();const form=event.currentTarget,data=new FormData(form);setBusy(true);setMessage('');setError('');

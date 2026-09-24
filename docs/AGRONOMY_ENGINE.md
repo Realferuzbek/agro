@@ -1,6 +1,6 @@
 # Agronomy engine
 
-AgriFlow uses deterministic TypeScript calculations independent of React, the database, and device vendors. Calculations are estimates from versioned inputs, not a substitute for local field calibration. The method is FAO-56 based; AgriFlow is not certified or endorsed by FAO.
+Baraka Agro uses deterministic TypeScript calculations independent of React, the database, and device vendors. Calculations are estimates from versioned inputs, not a substitute for local field calibration. The method is FAO-56 based; Baraka Agro is not certified or endorsed by FAO.
 
 Implementation: `src/domain/agronomy.ts`, with public contracts in `src/domain/types.ts`. `ENGINE_VERSION` is `1.0.0`; `DEFAULT_PARAMETERS.version` is `potato-loam-demo-1.0.0`. The main entry points are `calculateEto`, `calculateAgronomy` and `calculateGolden`. Unit helpers, `cropStage`, `adjustBasalCoefficient`, `evaporationCoefficients`, `rootWaterBalance` and `surfaceWaterBalance` are independently testable exports.
 

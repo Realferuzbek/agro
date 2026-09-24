@@ -4,7 +4,7 @@ import { randomBytes,randomUUID } from 'node:crypto';
 import { loadLocalEnvironment } from '../../scripts/env';
 
 loadLocalEnvironment();
-const enabled=process.env.AGRIFLOW_INTEGRATION_TESTS==='1';
+const enabled=process.env.BARAKA_INTEGRATION_TESTS==='1';
 const all=['simulation.manage','devices.manage','parameters.manage','audit.read'];
 type Identity={id:string;email:string;client:SupabaseClient};
 let service:SupabaseClient;let anon:SupabaseClient;let owner:SupabaseClient;let ownerId:string;
@@ -12,7 +12,7 @@ let manager:Identity;let ordinary:Identity;let limited:Identity;let target:Ident
 const ids:string[]=[];
 
 async function identity():Promise<Identity>{
-  const email=`access-${randomUUID()}@agriflow.test`,password=randomBytes(24).toString('base64url');
+  const email=`access-${randomUUID()}@barakaagro.test`,password=randomBytes(24).toString('base64url');
   const result=await service.auth.admin.createUser({email,password,email_confirm:true});expect(result.error).toBeNull();const id=result.data.user!.id;ids.push(id);
   const client=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
   expect((await client.auth.signInWithPassword({email,password})).error).toBeNull();return {id,email,client};
@@ -25,7 +25,7 @@ describe.skipIf(!enabled)('owner invariants, capability enforcement and audited 
     const url=process.env.NEXT_PUBLIC_SUPABASE_URL!;if(!url||!['localhost','127.0.0.1'].includes(new URL(url).hostname))throw new Error('Access tests require local Supabase.');
     const options={auth:{persistSession:false,autoRefreshToken:false}};
     service=createClient(url,process.env.SUPABASE_SERVICE_ROLE_KEY!,options);anon=createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,options);owner=createClient(url,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,options);
-    const signed=await owner.auth.signInWithPassword({email:process.env.AGRIFLOW_ADMIN_EMAIL!,password:process.env.AGRIFLOW_ADMIN_PASSWORD!});expect(signed.error).toBeNull();ownerId=signed.data.user!.id;
+    const signed=await owner.auth.signInWithPassword({email:process.env.BARAKA_ADMIN_EMAIL!,password:process.env.BARAKA_ADMIN_PASSWORD!});expect(signed.error).toBeNull();ownerId=signed.data.user!.id;
     const profile=await owner.from('profiles').select('role').eq('id',ownerId).single();expect(profile.data?.role).toBe('owner');
     manager=await identity();ordinary=await identity();limited=await identity();target=await identity();secondOwner=await identity();
     expect((await update(owner,manager.id,{role:'admin',permissions:['devices.manage'],canManageAdmins:true})).error).toBeNull();
@@ -89,8 +89,8 @@ describe.skipIf(!enabled)('owner invariants, capability enforcement and audited 
   it('blocks privileged Auth deletion, bans and email replacement of an owner',async()=>{
     expect((await service.auth.admin.deleteUser(ownerId)).error).not.toBeNull();
     expect((await service.auth.admin.updateUserById(ownerId,{ban_duration:'24h'})).error).not.toBeNull();
-    expect((await service.auth.admin.updateUserById(ownerId,{email:`hijack-${randomUUID()}@agriflow.test`})).error).not.toBeNull();
-    expect((await service.auth.admin.getUserById(ownerId)).data.user?.email).toBe(process.env.AGRIFLOW_ADMIN_EMAIL);
+    expect((await service.auth.admin.updateUserById(ownerId,{email:`hijack-${randomUUID()}@barakaagro.test`})).error).not.toBeNull();
+    expect((await service.auth.admin.getUserById(ownerId)).data.user?.email).toBe(process.env.BARAKA_ADMIN_EMAIL);
   });
   it('lets only an owner grant and revoke another nonprotected owner',async()=>{
     expect((await update(owner,secondOwner.id,{role:'owner'})).error).toBeNull();

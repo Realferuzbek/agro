@@ -1,8 +1,8 @@
-param([string]$SiteUrl = 'https://agro-feruzbeks-projects-10a1b6ab.vercel.app')
+param([string]$SiteUrl = 'https://barakaagro.app')
 $ErrorActionPreference = 'Stop'
 $project = Get-Content -LiteralPath '.vercel/project.json' -Raw | ConvertFrom-Json
 if ($project.projectId -ne 'prj_QKybirBzwAMFvzFGtLfKXOcn5Ejw' -or $project.orgId -ne 'team_gaFHl3p6xy0p3WEHdWNyVu3A') { throw 'Unexpected Vercel linkage. This script is restricted to the approved agro project.' }
-if ($SiteUrl -ne 'https://agro-feruzbeks-projects-10a1b6ab.vercel.app') { throw 'Unexpected application origin.' }
+if ($SiteUrl -ne 'https://barakaagro.app') { throw 'Unexpected application origin.' }
 $cloudValues = @{}
 foreach ($line in Get-Content -LiteralPath '.env.hosted.local') {
   if ($line -match '^([A-Z][A-Z0-9_]*)=(.*)$') { $cloudValues[$matches[1]] = $matches[2].Trim('"').Trim("'") }

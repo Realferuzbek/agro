@@ -14,7 +14,7 @@ Use verified server-side Auth identity rather than trusting a cookie payload alo
 
 ## Initial owner and team management
 
-The first local owner is created by `npx tsx scripts/bootstrap-admin.ts`, using Supabase's administrative user API and the server-only `bootstrap_initial_owner` RPC. Supply the email and a strong unique password through private environment values (`AGRIFLOW_ADMIN_EMAIL`, `AGRIFLOW_ADMIN_PASSWORD`) and the server-only service-role key. The routine must run on the operator's trusted machine, never in a client component or public signup endpoint.
+The first local owner is created by `npx tsx scripts/bootstrap-admin.ts`, using Supabase's administrative user API and the server-only `bootstrap_initial_owner` RPC. Supply the email and a strong unique password through private environment values (`BARAKA_ADMIN_EMAIL`, `BARAKA_ADMIN_PASSWORD`) and the server-only service-role key. The routine must run on the operator's trusted machine, never in a client component or public signup endpoint.
 
 The database role is authoritative even if an Auth record contains `role: admin` or `owner` metadata. Provisioning an Auth account alone does not grant administrative access. The bootstrap requires a confirmed identity and stores its UUID in `private.owner_registry`, serializes concurrent attempts, audits the binding, and rejects replacement by a different UUID. Repeating it for the same UUID is idempotent. An interrupted account creation remains unprivileged until trusted binding succeeds.
 

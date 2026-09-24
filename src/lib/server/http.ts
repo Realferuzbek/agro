@@ -10,7 +10,7 @@ export function checkOrigin(request: Request) {
   const origin = request.headers.get('origin');
   const expected = new URL(request.url).origin;
   const configured = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!origin || (origin !== expected && origin !== configured)) throw new HttpError(403, 'This action must be made from the AgriFlow application.');
+  if (!origin || (origin !== expected && origin !== configured)) throw new HttpError(403, 'This action must be made from the Baraka Agro application.');
 }
 
 export async function readJson<T>(request: Request, schema: ZodType<T>, maxBytes = 65_536): Promise<T> {

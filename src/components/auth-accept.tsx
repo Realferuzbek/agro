@@ -2,9 +2,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { authCopy as copy } from '@/config/access-copy';
+import { useAuthCopy } from '@/config/locale-copy';
+import { BrandLogo } from './brand-logo';
 
 export function AuthAccept() {
+  const copy = useAuthCopy();
   const started=useRef(false),[status,setStatus]=useState<'loading'|'ready'|'saved'|'invalid'>('loading'),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   useEffect(()=>{
     if(started.current)return;started.current=true;
@@ -24,10 +26,10 @@ export function AuthAccept() {
       }catch(caught){setStatus('invalid');setError(caught instanceof Error?caught.message:copy.invalid);}
     }
     void verify();
-  },[]);
+  },[copy.invalid,copy.unavailable]);
   async function save(event:FormEvent<HTMLFormElement>){
     event.preventDefault();const form=event.currentTarget,data=new FormData(form),password=String(data.get('password'));setError('');if(password!==data.get('confirmPassword')){setError(copy.mismatch);return;}setBusy(true);
-    try{const client=createBrowserSupabaseClient();if(!client)throw new Error(copy.unavailable);const {error:saveError}=await client.auth.updateUser({password});if(saveError)throw new Error('The password could not be saved. Use a unique password of at least 12 characters, or request a fresh secure link.');form.reset();await client.auth.signOut();setStatus('saved');}catch(caught){setError(caught instanceof Error?caught.message:copy.unavailable);}finally{setBusy(false);}
+    try{const client=createBrowserSupabaseClient();if(!client)throw new Error(copy.unavailable);const {error:saveError}=await client.auth.updateUser({password});if(saveError)throw new Error(copy.saveFailed);form.reset();await client.auth.signOut();setStatus('saved');}catch(caught){setError(caught instanceof Error?caught.message:copy.unavailable);}finally{setBusy(false);}
   }
-  return <main className="auth-page"><section className="card login-card"><div className="eyebrow">{copy.eyebrow}</div><h1>{copy.title}</h1><p>{copy.description}</p>{status==='loading'&&<p role="status">{copy.loading}</p>}{error&&<p role="alert" className="form-error">{error}</p>}{status==='ready'&&<form onSubmit={save}><label className="form-field">{copy.password}<input type="password" name="password" minLength={12} maxLength={256} autoComplete="new-password" required/></label><label className="form-field">{copy.confirmPassword}<input type="password" name="confirmPassword" minLength={12} maxLength={256} autoComplete="new-password" required/></label><p className="fine-print">{copy.passwordHint}</p><button className="button primary" disabled={busy}>{busy?copy.saving:copy.save}</button></form>}{status==='saved'&&<p role="status">{copy.saved}</p>}{status!=='loading'&&<Link className="button" href="/admin">{copy.signIn}</Link>}</section></main>;
+  return <main className="auth-page"><section className="card login-card"><div style={{marginBottom:24}}><BrandLogo /></div><div className="eyebrow">{copy.eyebrow}</div><h1>{copy.title}</h1><p>{copy.description}</p>{status==='loading'&&<p role="status">{copy.loading}</p>}{error&&<p role="alert" className="form-error">{error}</p>}{status==='ready'&&<form onSubmit={save}><label className="form-field">{copy.password}<input type="password" name="password" minLength={12} maxLength={256} autoComplete="new-password" required/></label><label className="form-field">{copy.confirmPassword}<input type="password" name="confirmPassword" minLength={12} maxLength={256} autoComplete="new-password" required/></label><p className="fine-print">{copy.passwordHint}</p><button className="button primary" disabled={busy}>{busy?copy.saving:copy.save}</button></form>}{status==='saved'&&<p role="status">{copy.saved}</p>}{status!=='loading'&&<Link className="button" href="/admin">{copy.signIn}</Link>}</section></main>;
 }

@@ -15,9 +15,11 @@ $$;
 rollback;
 
 select
-  (select count(*) from supabase_migrations.schema_migrations where version between '202609210001' and '202609210007') as recorded_migrations,
+  (select count(*) from supabase_migrations.schema_migrations where version between '202609210001' and '202609230009') as recorded_migrations,
   (select count(*) from pg_tables where schemaname='public' and not rowsecurity) as public_tables_without_rls,
   (select count(*) from public.profiles where role='admin') as hosted_admin_count,
+  (select count(*) from public.profiles where role='owner' and disabled_at is null) as hosted_active_owner_count,
+  (select count(*) from private.owner_registry r join public.profiles p on p.id=r.initial_owner_id where p.role='owner' and p.disabled_at is null) as protected_initial_owner_count,
   (select count(*) from auth.users) as hosted_auth_user_count,
   (select array_agg(tablename order by tablename) from pg_publication_tables where pubname='supabase_realtime' and schemaname='public') as realtime_tables,
   (select count(*) from pg_event_trigger where evtname='ensure_rls' and evtenabled='O') as platform_rls_trigger_count,

@@ -42,6 +42,7 @@ export const authCopy = {
   loading: 'Verifying your secure link…',
   invalid: 'This link is missing, expired, or already used. Ask your administrator for a new invitation, or use the documented trusted recovery procedure.',
   unavailable: 'The account service is unavailable. Please try again.',
+  saveFailed: 'The password could not be saved. Use a unique password of at least 12 characters, or request a fresh secure link.',
   password: 'New password',
   confirmPassword: 'Confirm password',
   passwordHint: 'Use at least 12 characters and a unique password.',

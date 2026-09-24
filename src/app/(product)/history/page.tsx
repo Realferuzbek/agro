@@ -1,3 +1,4 @@
 import { HistoryView } from '@/components/field-views';
-export const metadata = { title: 'History' };
+import { pageMetadata } from '@/config/seo';
+export const generateMetadata = () => pageMetadata('history');
 export default function Page() { return <HistoryView />; }

@@ -59,7 +59,7 @@ Use an actual current observation timestamp when trying the example. `version` m
 
 Humidity metric names are `relativeHumidityPct`, `relativeHumidityMaxPct` and `relativeHumidityMinPct`. Device kind restricts accepted metrics. An observation more than five minutes in the future is rejected. Values outside the contract's physical ranges are stored as `outlier`; observations older than 24 hours are `stale`. Neither replaces the valid latest reading. The database accepts at most 120 new events per device per minute.
 
-To submit a current example from PowerShell after registering the measured device and setting `AGRIFLOW_DEVICE_TOKEN` privately:
+To submit a current example from PowerShell after registering the measured device and setting `BARAKA_DEVICE_TOKEN` privately:
 
 ```powershell
 $event = @{
@@ -71,7 +71,7 @@ $event = @{
 }
 Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3000/api/telemetry/ingest' `
   -ContentType 'application/json' `
-  -Headers @{ Authorization = "Bearer $env:AGRIFLOW_DEVICE_TOKEN" } `
+  -Headers @{ Authorization = "Bearer $env:BARAKA_DEVICE_TOKEN" } `
   -Body ($event | ConvertTo-Json -Depth 5)
 ```
 

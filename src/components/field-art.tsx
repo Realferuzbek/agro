@@ -1,5 +1,6 @@
-import { copy } from '@/config/copy';
-export function FieldArt({ dark = false, activeZone = -1 }: { dark?: boolean; activeZone?: number }) {
+'use client';
+import { useCopy } from '@/config/locale-copy';
+export function FieldArt({ dark = false, activeZone = -1 }: { dark?: boolean; activeZone?: number }) {const copy = useCopy();
   return <svg className="field-art" viewBox="0 0 580 330" role="img" aria-label={copy.fieldArt.illustratedOneHectarePotatoFieldDividedIntoFour}>
     <defs><linearGradient id={dark ? 'land-dark' : 'land-light'} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={dark ? '#8ba958' : '#b8c989'} /><stop offset="1" stopColor={dark ? '#395f39' : '#63875a'} /></linearGradient><linearGradient id="art-sky" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#e9eedb" stopOpacity=".6" /><stop offset="1" stopColor="#a5b98b" stopOpacity="0" /></linearGradient><filter id="field-shadow"><feGaussianBlur stdDeviation="9" /></filter></defs>
     <ellipse cx="300" cy="279" rx="232" ry="29" fill="#102e22" opacity=".14" filter="url(#field-shadow)" />

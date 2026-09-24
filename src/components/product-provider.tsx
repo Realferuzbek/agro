@@ -1,13 +1,15 @@
 'use client';
-import { copy } from '@/config/copy';
+import { useCopy } from '@/config/locale-copy';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { brand } from '@/config/brand';
 import { advanceSimulation, applySimulationCommand, type SimulationState } from '@/domain';
 
 type Snapshot = { state: SimulationState | null; error: string | null; revision?: number };
 type Session = { isAdmin: boolean; user: { id?:string; email?: string } | null; role:string|null; permissions:string[]; canManageAdmins:boolean };
 const anonymousSession:Session={isAdmin:false,user:null,role:null,permissions:[],canManageAdmins:false};
+const previewStorageKey = `${brand.slug}-preview`;
 type Command = 'start' | 'pause' | 'resume' | 'stop';
 type ProductContextType = Snapshot & {
   preview: boolean; session: Session; simulationRunning: boolean; speed: number;
@@ -19,7 +21,7 @@ type ProductContextType = Snapshot & {
 const ProductContext = createContext<ProductContextType | null>(null);
 export function useProduct() { const context = useContext(ProductContext); if (!context) throw new Error('ProductProvider is required'); return context; }
 
-export function ProductProvider({ initial, children }: { initial: Snapshot; children: React.ReactNode }) {
+export function ProductProvider({ initial, children }: { initial: Snapshot; children: React.ReactNode }) {const copy = useCopy();
   const [snapshot, setSnapshot] = useState(initial);
   const [previewState, setPreviewState] = useState<SimulationState | null>(null);
   const [session, setSession] = useState<Session>(anonymousSession);
@@ -30,7 +32,7 @@ export function ProductProvider({ initial, children }: { initial: Snapshot; chil
   const refresh = useCallback(async () => {
     try { const response = await fetch('/api/product', { cache: 'no-store' }); const result = await response.json(); setSnapshot(previous => result.state && (result.revision ?? 0) < (previous.revision ?? 0) ? previous : { state: result.state ?? null, error: result.error ?? null, revision: result.revision }); }
     catch { setSnapshot(previous => ({ ...previous, error: copy.productProvider.theFieldConnectionIsUnavailableReconnecting })); }
-  }, []);
+  }, [copy.productProvider.theFieldConnectionIsUnavailableReconnecting]);
   const refreshSession = useCallback(async () => {
     try { const response = await fetch('/api/auth/session', { cache: 'no-store' }); const result = await response.json(); setSession({ isAdmin: result.isAdmin === true, user: result.user ?? null,role:result.role??null,permissions:result.permissions??[],canManageAdmins:result.canManageAdmins===true }); }
     catch { setSession(anonymousSession); }
@@ -42,17 +44,17 @@ export function ProductProvider({ initial, children }: { initial: Snapshot; chil
     if (!url || !key) return;
     const client = createBrowserSupabaseClient();
     if (!client) return;
-    const channel = client.channel('agriflow-field').on('postgres_changes', { event: '*', schema: 'public', table: 'product_state' }, () => void refresh()).subscribe();
+    const channel = client.channel(`${brand.slug}-field`).on('postgres_changes', { event: '*', schema: 'public', table: 'product_state' }, () => void refresh()).subscribe();
     const interval = window.setInterval(() => void refresh(), 30000);
     return () => { void client.removeChannel(channel); clearInterval(interval); };
   }, [refresh]);
   useEffect(() => {
     Promise.resolve().then(() => {
-      try { const stored = sessionStorage.getItem('agriflow-preview'); if (stored) { const parsed = JSON.parse(stored); if (parsed.schemaVersion === 1) setPreviewState(parsed); } } catch { sessionStorage.removeItem('agriflow-preview'); }
+      try { const stored = sessionStorage.getItem(previewStorageKey); if (stored) { const parsed = JSON.parse(stored); if (parsed.schemaVersion === 1) setPreviewState(parsed); } } catch { sessionStorage.removeItem(previewStorageKey); }
     });
   }, []);
   useEffect(() => {
-    if (previewState) sessionStorage.setItem('agriflow-preview', JSON.stringify(previewState));
+    if (previewState) sessionStorage.setItem(previewStorageKey, JSON.stringify(previewState));
   }, [previewState]);
   // Pausing irrigation stops delivery, not rain, device updates, or the scenario clock.
   const previewRunning = !!previewState && previewState.status !== 'stopped' && previewState.status !== 'completed';
@@ -67,7 +69,7 @@ export function ProductProvider({ initial, children }: { initial: Snapshot; chil
     const result = await response.json();
     if (!response.ok) { if (response.status === 409) await refresh(); throw new Error(result.error ?? copy.productProvider.theActionCouldNotBeCompleted); }
     if (result.state) setSnapshot({ state: result.state, revision: result.revision, error: null }); else await refresh();
-  }, [snapshot.revision, snapshot.state?.version, refresh]);
+  }, [snapshot.revision, snapshot.state?.version, refresh, copy.productProvider.theActionCouldNotBeCompleted]);
   useEffect(() => {
     if (!session.isAdmin || !session.permissions.includes('simulation.manage') || !simulationRunning) return;
     const interval = window.setInterval(async () => {
@@ -78,9 +80,9 @@ export function ProductProvider({ initial, children }: { initial: Snapshot; chil
       finally { inFlight.current = false; }
     }, 1000);
     return () => clearInterval(interval);
-  }, [session.isAdmin, session.permissions, simulationRunning, speed, adminAction]);
+  }, [session.isAdmin, session.permissions, simulationRunning, speed, adminAction, copy.productProvider.simulationPaused]);
 
   const beginPreview = () => { if (snapshot.state) setPreviewState(applySimulationCommand(structuredClone(snapshot.state), 'start')); };
   const command = (value: Command) => setPreviewState(previous => previous ? applySimulationCommand(previous, value) : previous);
-  return <ProductContext.Provider value={{ ...snapshot, state: previewState ?? snapshot.state, preview: !!previewState, session, simulationRunning, speed, refresh, refreshSession, beginPreview, exitPreview: () => { sessionStorage.removeItem('agriflow-preview'); setPreviewState(null); }, command, adminAction, setSimulationRunning, setSpeed }}>{children}</ProductContext.Provider>;
+  return <ProductContext.Provider value={{ ...snapshot, state: previewState ?? snapshot.state, preview: !!previewState, session, simulationRunning, speed, refresh, refreshSession, beginPreview, exitPreview: () => { sessionStorage.removeItem(previewStorageKey); setPreviewState(null); }, command, adminAction, setSimulationRunning, setSpeed }}>{children}</ProductContext.Provider>;
 }

@@ -7,8 +7,8 @@ const requiredPermissions=['simulation.manage','devices.manage','parameters.mana
 
 async function main(){
   const env=hostedEnvironment();
-  const email=env.AGRIFLOW_OWNER_EMAIL??env.AGRIFLOW_ADMIN_EMAIL;
-  const password=env.AGRIFLOW_OWNER_PASSWORD??env.AGRIFLOW_ADMIN_PASSWORD;
+  const email=env.BARAKA_OWNER_EMAIL??env.BARAKA_ADMIN_EMAIL;
+  const password=env.BARAKA_OWNER_PASSWORD??env.BARAKA_ADMIN_PASSWORD;
   if(new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname!==`${project}.supabase.co`||email?.toLowerCase()!==designatedEmail||!password)throw new Error('Approved hosted owner configuration is incomplete.');
   const client=createClient(env.NEXT_PUBLIC_SUPABASE_URL,env.NEXT_PUBLIC_SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
   const signed=await client.auth.signInWithPassword({email,password});

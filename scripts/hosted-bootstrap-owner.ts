@@ -9,8 +9,8 @@ async function main(){
   if(process.argv[process.argv.indexOf('--project-ref')+1]!==project)throw new Error(`Pass --project-ref ${project} for the approved target.`);
   const env=hostedEnvironment();
   if(new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname!==`${project}.supabase.co`||!env.SUPABASE_SERVICE_ROLE_KEY)throw new Error('Hosted configuration does not match the approved project.');
-  const configuredEmail=env.AGRIFLOW_OWNER_EMAIL??env.AGRIFLOW_ADMIN_EMAIL;
-  const configuredPassword=env.AGRIFLOW_OWNER_PASSWORD??env.AGRIFLOW_ADMIN_PASSWORD;
+  const configuredEmail=env.BARAKA_OWNER_EMAIL??env.BARAKA_ADMIN_EMAIL;
+  const configuredPassword=env.BARAKA_OWNER_PASSWORD??env.BARAKA_ADMIN_PASSWORD;
   if(configuredEmail?.toLowerCase()!==designatedEmail||!configuredPassword||configuredPassword.length<12)throw new Error('Private hosted owner credentials are missing or invalid.');
   const service=createClient(env.NEXT_PUBLIC_SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
   // The email selects the explicitly designated identity once. Every authorization afterwards uses its UUID.
@@ -25,7 +25,7 @@ async function main(){
   }
   if(!user)throw new Error('The designated Auth identity was not found.');
   const bound=await service.rpc('bootstrap_initial_owner',{p_user_id:user.id});if(bound.error)throw bound.error;
-  save('AGRIFLOW_OWNER_EMAIL',designatedEmail);save('AGRIFLOW_OWNER_ID',user.id);save('AGRIFLOW_OWNER_PASSWORD',configuredPassword);
+  save('BARAKA_OWNER_EMAIL',designatedEmail);save('BARAKA_OWNER_ID',user.id);save('BARAKA_OWNER_PASSWORD',configuredPassword);
   console.log('Designated owner UUID is protected and its private stored login credential is active.');
 }
 main().catch(()=>{console.error('Hosted owner bootstrap was not confirmed. Inspect the owner registry before retrying; no credentials were printed.');process.exitCode=1;});

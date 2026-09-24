@@ -1,0 +1,9 @@
+# Baraka Agro brand assets
+
+The canonical mark is [`public/brand/baraka-agro-mark.svg`](../public/brand/baraka-agro-mark.svg). It contains one deep-evergreen path (`#154837`) on a transparent canvas. Its viewBox is trimmed to the artwork; the path itself was not redrawn or recolored. `src/config/brand.ts` owns the name, origin, asset paths, and color. `--brand-evergreen` in `src/app/globals.css` uses the same color.
+
+`BrandMark` renders the SVG. `BrandLogo` pairs it with the name. `BrandReveal` uses the supplied WebM first and MP4 as a fallback in the application sidebar on the first visit of a browser session. It never blocks the application, never loops, fades to the static SVG on completion, and falls back to the static mark if media fails. Reduced-motion users see only the static mark. The animation frames have an opaque cream background, so the video sits in a matching cream surface (`--brand-cream: #fcf8ee`). Keep the evergreen mark on light surfaces or place that light surface within a dark area; do not recolor the canonical SVG to solve contrast.
+
+`baraka-agro-mark.png` is the supplied transparent raster fallback. The 192/512 pixel PWA icons and the 1200×630 social preview are generated **from that PNG** by `scripts/build-brand-assets.py`, with a cream background. They are derived delivery assets, not alternate marks. Pillow is required to rerun the script. The social preview uses the supplied mark and the product name.
+
+To replace the assets later: update the SVG and PNG together, preserve transparency and aspect ratio, rerun the raster script, update the two video files if the animation changes, then inspect light/dark contexts, icons, and social previews. If the animation background changes, update `--brand-cream` or its container treatment. Keep filenames or change the centralized paths in `src/config/brand.ts`. Check reduced motion, video failure, and the transition to the static mark in a browser.

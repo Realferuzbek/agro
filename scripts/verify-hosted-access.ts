@@ -4,15 +4,15 @@ import { hostedEnvironment } from './hosted-env';
 
 async function main(){
   const env=hostedEnvironment();
-  const ownerEmail=env.AGRIFLOW_OWNER_EMAIL??env.AGRIFLOW_ADMIN_EMAIL;
-  const ownerPassword=env.AGRIFLOW_OWNER_PASSWORD??env.AGRIFLOW_ADMIN_PASSWORD;
+  const ownerEmail=env.BARAKA_OWNER_EMAIL??env.BARAKA_ADMIN_EMAIL;
+  const ownerPassword=env.BARAKA_OWNER_PASSWORD??env.BARAKA_ADMIN_PASSWORD;
   if(env.SUPABASE_PROJECT_REF!=='gunzhtlbpxwpprqwnhfd'||ownerEmail?.toLowerCase()!=='iamrealferuzbek@gmail.com'||!ownerPassword)throw new Error('Approved hosted access configuration is incomplete.');
   const options={auth:{persistSession:false,autoRefreshToken:false}};
   const service=createClient(env.NEXT_PUBLIC_SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,options);
   const owner=createClient(env.NEXT_PUBLIC_SUPABASE_URL,env.NEXT_PUBLIC_SUPABASE_ANON_KEY,options);
   const ownerSignIn=await owner.auth.signInWithPassword({email:ownerEmail,password:ownerPassword});
   if(ownerSignIn.error||!ownerSignIn.data.user)throw new Error('Owner authentication failed.');
-  const email=`access-verification-${randomUUID()}@agriflow.test`,password=randomBytes(36).toString('base64url');
+  const email=`access-verification-${randomUUID()}@barakaagro.test`,password=randomBytes(36).toString('base64url');
   const created=await service.auth.admin.createUser({email,password,email_confirm:true});
   if(created.error||!created.data.user)throw new Error('Disposable verification identity could not be created.');
   const userId=created.data.user.id;

@@ -16,6 +16,6 @@ async function main(){
   ]);
   if(checks.some(check=>!check.error))throw new Error('An anonymous restricted operation unexpectedly succeeded.');
   const devices=await client.from('devices').select('id,mode').eq('field_id',fieldId);if(devices.error||devices.data.length!==12||devices.data.some(device=>device.mode!=='SIMULATED'))throw new Error('Simulated device seed mismatch.');
-  console.log(`Hosted verification passed: golden state ${Math.round(data.state.recommendation.grossVolumeLiters)} L, 7 mm forecast / 2 mm observed, 12 simulated devices, anonymous write/role/private-data denials. Hosted admin identity remains uncreated.`);
+  console.log(`Hosted verification passed: golden state ${Math.round(data.state.recommendation.grossVolumeLiters)} L, 7 mm forecast / 2 mm observed, 12 simulated devices, anonymous write/role/private-data denials.`);
 }
 main().catch(error=>{console.error(error instanceof Error?error.message:'Hosted verification failed.');process.exitCode=1;});
